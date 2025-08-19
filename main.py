@@ -93,5 +93,5 @@ if __name__ == "__main__":
 #   reference of how it played compared to current rackets. I want to eventually 
 #   have so many options for this program that we can really get into the nitty gritty 
 #   
-#
+# - Figure out how to use git to track changes and updates to the code
 #
