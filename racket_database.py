@@ -1,3 +1,6 @@
+import json
+from racket import Racket
+
 class RacketDatabase:
     def __init__(self):
         self.rackets = []
@@ -5,10 +8,30 @@ class RacketDatabase:
     def add_racket(self, racket_object):
         self.rackets.append(racket_object)
 
-    def find_racket(self, racket_object_type):
-        for index, racket in enumerate(self.rackets):
-            if racket.name == racket_object_type:
-                print(f"The racket '{racket_object_type}' is at index {index}")
-                return # Stop after finding the first match
-        print(f"The racket '{racket_object_type}' was not found in the database.")
-        # need to add additional search for type of racket in addition to name
+    def find_racket(self, racket_name):
+        for racket in self.rackets:
+            # A more robust search that is case-insensitive
+            if racket_name.lower() in racket.name.lower():
+                return racket
+        return None
+    
+    def save_to_json(self, filename):
+        try:
+            with open(filename, 'w') as f:
+                # Convert list of Racket objects to list of dictionaries
+                json.dump([racket.to_dict() for racket in self.rackets], f, indent=4)
+            print(f"\nDatabase successfully saved to {filename}")
+        except Exception as e:
+            print(f"Error saving database: {e}")
+
+    # Method to load the database from a JSON file on startup
+    def load_from_json(self, filename):
+        try:
+            with open(filename, 'r') as f:
+                rackets_data = json.load(f)
+                self.rackets = [Racket(**data) for data in rackets_data]
+            print(f"Database successfully loaded from {filename}")
+        except FileNotFoundError:
+            print("No existing database file found. Starting fresh.")
+        except Exception as e:
+            print(f"Error loading database: {e}")

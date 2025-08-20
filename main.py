@@ -1,62 +1,102 @@
 import time
+import datetime
+import scraper
 from racket_database import RacketDatabase
 from racket import Racket
 
+DATABASE_FILE = 'rackets.json'
+
 def main():
     database = RacketDatabase()
-
-    racket1 = Racket("Babolat", "Pure Drive", "Team", 285, 100, 68, "16x19")
-    racket2 = Racket("Wilson", "Pro Staff", "97L", 290, 97, 65, "16x19")
-    # Creates two racket objects yet to be added to the database
-
-    database.add_racket(racket1)
-    database.add_racket(racket2)
-    # Adds two previously created book objects to the database collection 
+    database.load_from_json(DATABASE_FILE)
 
     while True:
         choice = int(input("What would you like to do in the library?: "
                         "\n 1 - add a racket"
                         "\n 2 - find a racket"
-                        # add option to check status/stats of a racket, maybe
-                        # just use "find a racket" bc it does nothing important
-
-                        "\n 3 - exit"
-                        "\n"))
+                        "\n 3 - Update prices for a racket from the web"
+                        "\n 4 - List all rackets"
+                        "\n 5 - exit"
+                        "\n:"))
         # Menu for database options
 
         if choice == 1:
-            new_brand = input("What brand is the new racket?\n ")
-            new_name = input("What is the official name of the new racket?\n ")
-            new_type = input("What is the specific type of the new racket?\n ")
-            new_weight = input("What is the weight of the new racket?\n ")
-            new_head_size = input("What is the head size of the new racket?\n ")
-            new_stiffness = input("What is the stiffness of the new racket?\n ")
-            new_string_pattern = input("What is the string pattern of the new racket?\n ")
+            brand = input("Brand: ")
+            name = input("Name (e.g., Pro Staff): ")
+            type_model = input("Type/Model (e.g., 97L): ")
+            weight = input("Weight (g): ")
+            head_size = input("Head Size (sq. in.): ")
+            stiffness = input("Stiffness: ")
+            string_pattern = input("String Pattern: ")
             # need to add preventative statements incase bad information or data type is given
 
-            new_racket = Racket(new_brand, new_name, new_type, new_weight, 
-                                new_head_size, new_stiffness, new_string_pattern)
+            full_name = f"{brand} {name} {type_model}"
+            print(f"\nSearching for '{full_name}' online...")
+            url_te = scraper.find_product_url(full_name, "https://www.tennisexpress.com")
+            url_tw = scraper.find_product_url(full_name, "https://www.tennis-warehouse.com")
 
-            database.add_racket(new_racket) 
-            print(f"The {new_name} {new_type} by {new_brand} has been added to the database sucessfully")
-            # The variable "new_racket" is replaced every time a new racket is added but thats not an 
+            new_racket = Racket(brand, name, type_model, weight, head_size, stiffness, string_pattern, url_te, url_tw)
+            # Adds new racket to database with input from user
+
+            database.add_racket(new_racket)
+            print(f"\n'{full_name}' has been added to the database.")            # The variable "new_racket" is replaced every time a new racket is added but thats not an 
             # issue because the info is stored in a separate Racket() object with a unique name and type
 
-        elif choice == 2:
-            search_name = input(f"Please enter the exact racket name you would like to find: ")
-            database.find_racket(search_name)
+        elif choice == '2':
+            search_name = input("Enter the name of the racket to find: ")
+            found_racket = database.find_racket(search_name)
+            if found_racket:
+                found_racket.show_details()
+            else:
+                print(f"'{search_name}' was not found in the database.")
         # Uses racket object created earlier to find name stored within this database
         # stored rackets can be traced back to "rackets" index in racket_database
 
-        elif choice == 3:
-            print("exiting database...")
-            time.sleep(3)
-            print("Goodbye! :)")
+        elif choice == '3':
+            search_name = input("Enter the name of the racket to update prices for: ")
+            racket_to_update = database.find_racket(search_name)
+            
+            if not racket_to_update:
+                print(f"'{search_name}' was not found.")
+                continue
+
+            print(f"\n--- Fetching prices for {racket_to_update.name} ---")
+            
+            # Scrape Tennis Express
+            if racket_to_update.url_te:
+                print("\nChecking Tennis Express...")
+                te_prices = scraper.fetch_prices_from_url(racket_to_update.url_te)
+                racket_to_update.prices['TE'] = te_prices
+            
+            # Scrape Tennis Warehouse (placeholder, needs its own selectors)
+            if racket_to_update.url_tw:
+                print("\nChecking Tennis Warehouse...")
+                tw_prices = scraper.fetch_prices_from_url(racket_to_update.url_tw)
+                racket_to_update.prices['TW'] = tw_prices
+            
+            racket_to_update.last_updated = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            print("\n--- Price update complete! ---")
+            racket_to_update.show_details()
+
+        # Option to view all rackets in the database
+        elif choice == '4':
+            if not database.rackets:
+                print("\nThe database is currently empty.")
+            else:
+                print("\n--- Rackets in Database ---")
+                for i, racket in enumerate(database.rackets):
+                    print(f"{i + 1}. {racket.brand} {racket.name} {racket.type}")
+
+        elif choice == 5:
+            # Save the database to the file before exiting
+            print("\nSaving...")
+            database.save_to_json(DATABASE_FILE)
+            print("\nSave successful")
+            print("\nExiting program. Goodbye! :)")
             break
-        # Exits the database
 
         else:
-            print("Invalid Choice")
+            print("\nInvalid Choice. Please enter a number from 1 to 5.")
 
 if __name__ == "__main__":
     main()
