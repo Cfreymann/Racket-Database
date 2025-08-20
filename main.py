@@ -33,7 +33,7 @@ def main():
             # Automatically find URLs instead of asking the user
             full_name = f"{brand} {name} {type_model}"
             print(f"\nSearching for '{brand} {name} {type_model}' online...")
-            url_te = scraper.find_product_url(brand, name, type_model, 'TE', debug=True)
+            url_te =  scraper.find_product_url(brand, name, type_model, 'TE', debug=True)
             url_tw = scraper.find_product_url(brand, name, type_model, 'TW', debug=True)
             
             new_racket = Racket(brand, name, type_model, weight, head_size, stiffness, string_pattern, url_te, url_tw)
@@ -89,8 +89,7 @@ def main():
             break
 
         else:
-            print("\nInvalid c1" \
-            "Invalid Choice. Please enter a number from 1 to 5.")
+            print("\nInvalid Choice. Please enter a number from 1 to 5.")
 
 if __name__ == "__main__":
     main()
@@ -119,6 +118,8 @@ if __name__ == "__main__":
 #       my program and allow for multiple rackets, grip sizes and discounts
 #       to be scraped. Also adding a "show prices" option to the menu next to 
 #       compare between tennis warehouse vs tennis express
+#     * Web scraper can search tennis express but not warehouse. Implementing
+#       Selenium to fix issue with tennis warehouse
 #
 # - Further down the line a UI or GUI would make this a proper application,
 #   potentially available for use at FST. Maybe use PyQt or pysimplegui
@@ -129,3 +130,6 @@ if __name__ == "__main__":
 #   
 # - Figure out how to use git to track changes and updates to the code
 #
+# NOTE FOR THE FUTURE! in the Tennis Warehouse robots.txt, there is a cooldown of 30 
+# seconds per request. This means when checking and updating prices you must wait 30 
+# seconds bewteen each request or you could be blocked

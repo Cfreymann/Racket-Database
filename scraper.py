@@ -1,25 +1,32 @@
 import requests
 from bs4 import BeautifulSoup
-import json
-import re
 from urllib.parse import urljoin, quote_plus
+import time
+
+# NEW imports for Selenium
+from selenium import webdriver
+from selenium.webdriver.common.by import By
+from selenium.webdriver.chrome.service import Service
+from selenium.webdriver.support.ui import WebDriverWait
+from selenium.webdriver.support import expected_conditions as EC
 
 def find_product_url(brand: str, name: str, type_model: str, site_code: str, debug=False) -> str | None:
     """
-    Finds a product URL by prioritizing links that contain the word "racquet".
+    Finds a product URL. Uses requests for simple sites and Selenium for JS-heavy sites.
     """
+    # This path assumes 'chromedriver.exe' is in the same folder as your script.
+    CHROME_DRIVER_PATH = r'C:\Coding Projects\Practice Python\Racket Database\chromedriver.exe'
+
     SITES = {
         'TE': {
             'base_url': "https://www.tennisexpress.com",
             'search_path': "/search?q=",
-            # Selector for all product card links
             'link_selector': 'a.product-card-title'
         },
         'TW': {
             'base_url': "https://www.tennis-warehouse.com",
             'search_path': "/search-tennis.html?searchtext=",
-            # UPDATED SELECTOR for Tennis Warehouse product grid
-            'link_selector': 'div.c-product-grid__product-info > a.c-product-grid__product-link'
+            'link_selector': 'a.cattable-wrap-cell-info' # The correct selector you found
         }
     }
 
@@ -34,18 +41,52 @@ def find_product_url(brand: str, name: str, type_model: str, site_code: str, deb
     
     print(f"-> Searching for '{full_search_name}' on {site_code}...")
     
+    page_html = None
+
+    # --- Use Selenium ONLY for Tennis Warehouse ---
+    if site_code == 'TW':
+        try:
+            service = Service(executable_path=CHROME_DRIVER_PATH)
+            options = webdriver.ChromeOptions()
+            # This line makes the browser run in the background without a visible window.
+            # You can comment it out if you want to see the browser open.
+            options.add_argument('--headless') 
+            options.add_argument("user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36")
+            
+            driver = webdriver.Chrome(service=service, options=options)
+            driver.get(search_url)
+
+            # --- CRUCIAL: Wait up to 10 seconds for the product links to appear ---
+            print("   (Waiting for JavaScript to load page content...)")
+            WebDriverWait(driver, 10).until(
+                EC.presence_of_element_located((By.CSS_SELECTOR, link_selector))
+            )
+            
+            # Now that the page is loaded, get the final HTML
+            page_html = driver.page_source
+            driver.quit() # Close the browser
+        except Exception as e:
+            print(f"An error occurred with Selenium: {e}")
+            return None
+    
+    # --- Use simple requests for Tennis Express ---
+    else: 
+        try:
+            headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'}
+            response = requests.get(search_url, headers=headers, timeout=20)
+            response.raise_for_status()
+            page_html = response.text
+        except Exception as e:
+            print(f"An error occurred with requests: {e}")
+            return None
+
+    # --- The rest of the logic to parse the HTML is the same as before ---
+    if not page_html:
+        return None
+
     try:
-        headers = {
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
-            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
-            'Accept-Language': 'en-US,en;q=0.5',
-            'Connection': 'keep-alive',
-        }
-
-        response = requests.get(search_url, headers=headers, timeout=20)
-        response.raise_for_status()
-        soup = BeautifulSoup(response.text, 'html.parser')
-
+        soup = BeautifulSoup(page_html, 'html.parser')
+        
         if debug:
             debug_filename = f"debug_{site_code}.html"
             with open(debug_filename, 'w', encoding='utf-8') as f:
@@ -58,25 +99,18 @@ def find_product_url(brand: str, name: str, type_model: str, site_code: str, deb
             return None
 
         core_keywords = name.lower().split() + type_model.lower().split()
-        
-        # --- NEW: Prioritization Logic ---
         racquet_links = []
         other_links = []
 
         for link in all_link_elements:
-            link_text = link.get_text().strip().lower()
+            link_text = link.get_text(strip=True).lower()
             if all(keyword in link_text for keyword in core_keywords) and 'junior' not in link_text and 'demo' not in link_text:
-                if 'racquet' in link_text or 'racket' in link_text:
-                    racquet_links.append(link) # It's a high-priority match
+                if 'racquet' in link_text or 'racket' in link_text or site_code == 'TW':
+                    racquet_links.append(link)
                 else:
-                    other_links.append(link) # It's a lower-priority match (like a grommet)
+                    other_links.append(link)
         
-        # Prefer links with "racquet" in the title first
-        best_match_link = None
-        if racquet_links:
-            best_match_link = racquet_links[0]
-        elif other_links:
-            best_match_link = other_links[0]
+        best_match_link = racquet_links[0] if racquet_links else (other_links[0] if other_links else None)
 
         if best_match_link and best_match_link.has_attr('href'):
             absolute_url = urljoin(base_url, best_match_link['href'])
@@ -85,7 +119,6 @@ def find_product_url(brand: str, name: str, type_model: str, site_code: str, deb
 
         print(f"   ⚠️ Could not find a specific match for '{full_search_name}'.")
         return None
-
     except Exception as e:
-        print(f"An error occurred while finding the URL: {e}")
+        print(f"An error occurred while parsing the HTML: {e}")
         return None
