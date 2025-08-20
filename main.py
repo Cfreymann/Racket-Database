@@ -32,9 +32,9 @@ def main():
             
             # Automatically find URLs instead of asking the user
             full_name = f"{brand} {name} {type_model}"
-            print(f"\nSearching for '{full_name}' online...")
-            url_te = scraper.find_product_url(full_name, 'TE')
-            url_tw = scraper.find_product_url(full_name, 'TW')
+            print(f"\nSearching for '{brand} {name} {type_model}' online...")
+            url_te = scraper.find_product_url(brand, name, type_model, 'TE', debug=True)
+            url_tw = scraper.find_product_url(brand, name, type_model, 'TW', debug=True)
             
             new_racket = Racket(brand, name, type_model, weight, head_size, stiffness, string_pattern, url_te, url_tw)
             database.add_racket(new_racket)
@@ -89,7 +89,8 @@ def main():
             break
 
         else:
-            print("\nInvalid choice. Please enter a number from 1 to 5.")
+            print("\nInvalid c1" \
+            "Invalid Choice. Please enter a number from 1 to 5.")
 
 if __name__ == "__main__":
     main()
