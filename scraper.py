@@ -35,6 +35,7 @@ def find_product_url(racket_name: str, site_base_url: str) -> str | None:
         if link_element and link_element.has_attr('href'):
             # Step 4: Extract the relative path and join it with the base URL.
             relative_url = link_element['href']
+            # urljoin combines the base URL with the relative path, e.g., "https://site.com" + "/products/racket"
             absolute_url = urljoin(site_base_url, relative_url)
             print(f"   ✅ Found product URL: {absolute_url}")
             return absolute_url

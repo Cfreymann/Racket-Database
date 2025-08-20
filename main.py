@@ -1,26 +1,27 @@
-import time
 import datetime
-import scraper
 from racket_database import RacketDatabase
 from racket import Racket
+import scraper 
 
+# Define a constant for the database filename for easy access
 DATABASE_FILE = 'rackets.json'
 
 def main():
     database = RacketDatabase()
+    # Load any existing rackets from the file on startup
     database.load_from_json(DATABASE_FILE)
 
     while True:
-        choice = int(input("What would you like to do in the library?: "
-                        "\n 1 - add a racket"
-                        "\n 2 - find a racket"
-                        "\n 3 - Update prices for a racket from the web"
-                        "\n 4 - List all rackets"
-                        "\n 5 - exit"
-                        "\n:"))
-        # Menu for database options
+        # The main menu for the application
+        choice = input("\nWhat would you like to do?:\n"
+                       " 1 - Add a new racket\n"
+                       " 2 - Find a racket and show details\n"
+                       " 3 - Update prices for a racket from the web\n"
+                       " 4 - List all rackets\n"
+                       " 5 - Exit\n"
+                       "Enter your choice: ")
 
-        if choice == 1:
+        if choice == '1':
             brand = input("Brand: ")
             name = input("Name (e.g., Pro Staff): ")
             type_model = input("Type/Model (e.g., 97L): ")
@@ -28,19 +29,16 @@ def main():
             head_size = input("Head Size (sq. in.): ")
             stiffness = input("Stiffness: ")
             string_pattern = input("String Pattern: ")
-            # need to add preventative statements incase bad information or data type is given
-
+            
+            # Automatically find URLs instead of asking the user
             full_name = f"{brand} {name} {type_model}"
             print(f"\nSearching for '{full_name}' online...")
-            url_te = scraper.find_product_url(full_name, "https://www.tennisexpress.com")
-            url_tw = scraper.find_product_url(full_name, "https://www.tennis-warehouse.com")
-
+            url_te = scraper.find_product_url(full_name, 'TE')
+            url_tw = scraper.find_product_url(full_name, 'TW')
+            
             new_racket = Racket(brand, name, type_model, weight, head_size, stiffness, string_pattern, url_te, url_tw)
-            # Adds new racket to database with input from user
-
             database.add_racket(new_racket)
-            print(f"\n'{full_name}' has been added to the database.")            # The variable "new_racket" is replaced every time a new racket is added but thats not an 
-            # issue because the info is stored in a separate Racket() object with a unique name and type
+            print(f"\n'{full_name}' has been added to the database.")
 
         elif choice == '2':
             search_name = input("Enter the name of the racket to find: ")
@@ -49,8 +47,6 @@ def main():
                 found_racket.show_details()
             else:
                 print(f"'{search_name}' was not found in the database.")
-        # Uses racket object created earlier to find name stored within this database
-        # stored rackets can be traced back to "rackets" index in racket_database
 
         elif choice == '3':
             search_name = input("Enter the name of the racket to update prices for: ")
@@ -68,7 +64,7 @@ def main():
                 te_prices = scraper.fetch_prices_from_url(racket_to_update.url_te)
                 racket_to_update.prices['TE'] = te_prices
             
-            # Scrape Tennis Warehouse (placeholder, needs its own selectors)
+            # Scrape Tennis Warehouse
             if racket_to_update.url_tw:
                 print("\nChecking Tennis Warehouse...")
                 tw_prices = scraper.fetch_prices_from_url(racket_to_update.url_tw)
@@ -78,7 +74,6 @@ def main():
             print("\n--- Price update complete! ---")
             racket_to_update.show_details()
 
-        # Option to view all rackets in the database
         elif choice == '4':
             if not database.rackets:
                 print("\nThe database is currently empty.")
@@ -86,17 +81,15 @@ def main():
                 print("\n--- Rackets in Database ---")
                 for i, racket in enumerate(database.rackets):
                     print(f"{i + 1}. {racket.brand} {racket.name} {racket.type}")
-
-        elif choice == 5:
+        
+        elif choice == '5':
             # Save the database to the file before exiting
-            print("\nSaving...")
             database.save_to_json(DATABASE_FILE)
-            print("\nSave successful")
             print("\nExiting program. Goodbye! :)")
             break
 
         else:
-            print("\nInvalid Choice. Please enter a number from 1 to 5.")
+            print("\nInvalid choice. Please enter a number from 1 to 5.")
 
 if __name__ == "__main__":
     main()
