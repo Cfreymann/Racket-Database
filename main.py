@@ -41,19 +41,19 @@ def main():
             print(f"\n'{full_name}' has been added to the database.")
 
         elif choice == '2':
-            search_name = input("Enter the name of the racket to find: ")
-            found_racket = database.find_racket(search_name)
+            search_term = input("Enter the racket name and model to find (e.g., Ezone 98L): ")
+            found_racket = database.find_racket(search_term)
             if found_racket:
                 found_racket.show_details()
             else:
-                print(f"'{search_name}' was not found in the database.")
+                print(f"'{search_term}' was not found in the database.")
 
         elif choice == '3':
-            search_name = input("Enter the name of the racket to update prices for: ")
-            racket_to_update = database.find_racket(search_name)
+            search_term = input("Enter the racket name and model to update (e.g., Ezone 98L): ")
+            racket_to_update = database.find_racket(search_term)
             
             if not racket_to_update:
-                print(f"'{search_name}' was not found.")
+                print(f"'{search_term}' was not found.")
                 continue
 
             print(f"\n--- Fetching prices for {racket_to_update.name} ---")

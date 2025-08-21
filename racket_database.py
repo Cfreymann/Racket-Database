@@ -8,12 +8,26 @@ class RacketDatabase:
     def add_racket(self, racket_object):
         self.rackets.append(racket_object)
 
-    def find_racket(self, racket_name):
+    def find_racket(self, search_term):
+        """
+        Finds a racket by searching against a combined name and type string.
+        Prioritizes an exact match before falling back to a partial match.
+        """
+        search_term_lower = search_term.lower()
+
+        # First pass: Look for an exact match (e.g., "Ezone 98L")
         for racket in self.rackets:
-            # A more robust search that is case-insensitive
-            if racket_name.lower() in racket.name.lower():
+            full_name = f"{racket.name} {racket.type}".lower()
+            if search_term_lower == full_name:
                 return racket
-        return None
+
+        # Second pass: If no exact match, look for a partial match
+        for racket in self.rackets:
+            full_name = f"{racket.name} {racket.type}".lower()
+            if search_term_lower in full_name:
+                return racket
+        
+        return None # Return None if no racket is found
     
     def save_to_json(self, filename):
         try:

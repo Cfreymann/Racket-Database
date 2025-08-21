@@ -122,3 +122,76 @@ def find_product_url(brand: str, name: str, type_model: str, site_code: str, deb
     except Exception as e:
         print(f"An error occurred while parsing the HTML: {e}")
         return None
+def fetch_prices_from_url(product_url: str) -> dict:
+    """
+    Scrapes the sale and original price from a given product URL.
+    Returns a dictionary with 'sale_price' and 'original_price'.
+    """
+    if not product_url:
+        return {}
+
+    # Define the CSS selectors for each site's product page
+    SITE_CONFIG = {
+        'TE': {
+            # Correct selectors for Tennis Express
+            'sale_price_selector': 'span.discounted',
+            'original_price_selector': 'del span.amount' 
+        },
+        'TW': {
+            # --- UPDATE THESE TWO LINES ---
+            'sale_price_selector': 'div.price',
+            'original_price_selector': 'del'
+        }
+    }
+
+
+    # Determine which site we are scraping
+    site_code = None
+    if 'tennisexpress.com' in product_url:
+        site_code = 'TE'
+    elif 'tennis-warehouse.com' in product_url:
+        site_code = 'TW'
+
+    if not site_code:
+        print(f"   ⚠️ URL not recognized: {product_url}")
+        return {}
+
+    config = SITE_CONFIG[site_code]
+    prices = {'sale_price': None, 'original_price': None}
+
+    try:
+        # Simple requests is fine for product pages, no need for Selenium here
+        headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'}
+        response = requests.get(product_url, headers=headers, timeout=20)
+        response.raise_for_status()
+        soup = BeautifulSoup(response.text, 'html.parser')
+
+        def clean_price(price_text):
+            if not price_text: return None
+            cleaned_text = price_text.strip().replace('$', '').replace(',', '')
+            try:
+                return float(cleaned_text)
+            except (ValueError, TypeError):
+                return None
+
+        # Find and clean the sale price
+        sale_price_element = soup.select_one(config['sale_price_selector'])
+        if sale_price_element:
+            prices['sale_price'] = clean_price(sale_price_element.get_text())
+            print(f"   ✅ Found Sale Price: ${prices['sale_price']:.2f}")
+        else:
+            print(f"   ⚠️ Sale price not found with selector: {config['sale_price_selector']}")
+
+        # Find and clean the original price
+        original_price_element = soup.select_one(config['original_price_selector'])
+        if original_price_element:
+            prices['original_price'] = clean_price(original_price_element.get_text())
+            print(f"   ✅ Found Original Price: ${prices['original_price']:.2f}")
+        
+        if prices['sale_price'] and not prices['original_price']:
+            prices['original_price'] = prices['sale_price']
+
+    except Exception as e:
+        print(f"   An error occurred while fetching prices: {e}")
+
+    return prices
