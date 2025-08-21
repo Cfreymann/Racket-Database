@@ -42,29 +42,66 @@ def main():
 
         elif choice == '2':
             search_term = input("Enter the racket name and model to find (e.g., Ezone 98L): ")
-            found_racket = database.find_racket(search_term)
-            if found_racket:
-                found_racket.show_details()
-            else:
+            result = database.find_racket(search_term)
+
+            # Loop as long as the result is a list (ambiguous)
+            while isinstance(result, list):
+                print(f"\nMultiple rackets found. Please be more specific.")
+                print("Did you mean:")
+                for racket in result:
+                    print(f" - {racket.name} {racket.type}")
+
+                search_term = input("\nEnter the full name from the list above (or press Enter to cancel): ")
+
+                if not search_term: # User pressed Enter to cancel
+                    result = "CANCELLED" # Use a special flag to exit
+                    break
+                
+                result = database.find_racket(search_term) # Re-run the search with the new term
+
+            # After the loop, process the final, unambiguous result
+            if result == "CANCELLED":
+                print("Search cancelled.")
+            elif result is None:
                 print(f"'{search_term}' was not found in the database.")
+            elif isinstance(result, Racket):
+                result.show_details()
 
         elif choice == '3':
             search_term = input("Enter the racket name and model to update (e.g., Ezone 98L): ")
             racket_to_update = database.find_racket(search_term)
             
-            if not racket_to_update:
+            # Loop as long as the result is a list (ambiguous)
+            while isinstance(racket_to_update, list):
+                print(f"\nMultiple rackets found. Please be more specific.")
+                print("Did you mean:")
+                for racket in racket_to_update:
+                    print(f" - {racket.name} {racket.type}")
+                
+                search_term = input("\nEnter the full name from the list above (or press Enter to cancel): ")
+
+                if not search_term:
+                    racket_to_update = "CANCELLED"
+                    break
+
+                racket_to_update = database.find_racket(search_term)
+
+            # After the loop, process the final result
+            if racket_to_update == "CANCELLED":
+                print("Update cancelled.")
+                continue
+            elif racket_to_update is None:
                 print(f"'{search_term}' was not found.")
                 continue
 
+            # This part below only runs if a single racket was found
             print(f"\n--- Fetching prices for {racket_to_update.name} ---")
             
-            # Scrape Tennis Express
             if racket_to_update.url_te:
                 print("\nChecking Tennis Express...")
                 te_prices = scraper.fetch_prices_from_url(racket_to_update.url_te)
                 racket_to_update.prices['TE'] = te_prices
             
-            # Scrape Tennis Warehouse
             if racket_to_update.url_tw:
                 print("\nChecking Tennis Warehouse...")
                 tw_prices = scraper.fetch_prices_from_url(racket_to_update.url_tw)
