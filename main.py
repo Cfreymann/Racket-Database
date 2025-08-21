@@ -109,6 +109,8 @@ if __name__ == "__main__":
 #
 # - Increase racket search specifics by including name as well as type,
 #   without this it becomes impossible to search rackets at the type level
+#     * Type has been added as a property of Racket object. Must add version
+#       next.
 #
 # - Debating adding price option because of the freequency of updates needed
 #   to maintain the proper price, MAYBE an opportunity for testing web scraper
@@ -120,6 +122,8 @@ if __name__ == "__main__":
 #       compare between tennis warehouse vs tennis express
 #     * Web scraper can search tennis express but not warehouse. Implementing
 #       Selenium to fix issue with tennis warehouse
+#     * Web scraper successful at searching rackets on both tennis warehouse
+#       and express. Selenium is used solely on warehouse as it is much slower.
 #
 # - Further down the line a UI or GUI would make this a proper application,
 #   potentially available for use at FST. Maybe use PyQt or pysimplegui
@@ -128,8 +132,19 @@ if __name__ == "__main__":
 #   reference of how it played compared to current rackets. I want to eventually 
 #   have so many options for this program that we can really get into the nitty gritty 
 #   
-# - Figure out how to use git to track changes and updates to the code
+# - Figure out how to use git to track changes and updates to the code.
+#     * Done, must figure out how to track changes to github incase other people want
+#       to work on this project as well.
 #
+# BUGS THAT NEED FIXING:
+# - Oh god so many
+#
+# - Not all added rackets correspond to correct racket searched. Must refine search for 
+#   special edition and old versions of rackets, perhaps including other metrics into 
+#   search vs just type and name.
+#
+# - After adding racket to database, you can still search only the name of the racket.
+#  
 # NOTE FOR THE FUTURE! in the Tennis Warehouse robots.txt, there is a cooldown of 30 
 # seconds per request. This means when checking and updating prices you must wait 30 
 # seconds bewteen each request or you could be blocked
