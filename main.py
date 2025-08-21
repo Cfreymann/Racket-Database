@@ -181,6 +181,8 @@ if __name__ == "__main__":
 #   search vs just type and name.
 #
 # - After adding racket to database, you can still search only the name of the racket.
+#   (Ex. searching Pro Staff instead of specific type like 97L)
+#     * FIXED
 #  
 # NOTE FOR THE FUTURE! in the Tennis Warehouse robots.txt, there is a cooldown of 30 
 # seconds per request. This means when checking and updating prices you must wait 30 
