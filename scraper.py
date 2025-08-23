@@ -1,22 +1,24 @@
+import os
 import requests
 from bs4 import BeautifulSoup
 from urllib.parse import urljoin, quote_plus
 import time
 
-# NEW imports for Selenium
+# --- Selenium Imports ---
 from selenium import webdriver
 from selenium.webdriver.common.by import By
-from selenium.webdriver.chrome.service import Service
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
+
+# --- Browser-Specific Imports for Firefox ---
+from selenium.webdriver.firefox.service import Service as FirefoxService
+from selenium.webdriver.firefox.options import Options as FirefoxOptions
+
 
 def find_product_url(brand: str, name: str, type_model: str, site_code: str, debug=False) -> str | None:
     """
     Finds a product URL. Uses requests for simple sites and Selenium for JS-heavy sites.
     """
-    # This path assumes 'chromedriver.exe' is in the same folder as your script.
-    CHROME_DRIVER_PATH = r'C:\Coding Projects\Practice Python\Racket Database\chromedriver.exe'
-
     SITES = {
         'TE': {
             'base_url': "https://www.tennisexpress.com",
@@ -26,7 +28,7 @@ def find_product_url(brand: str, name: str, type_model: str, site_code: str, deb
         'TW': {
             'base_url': "https://www.tennis-warehouse.com",
             'search_path': "/search-tennis.html?searchtext=",
-            'link_selector': 'a.cattable-wrap-cell-info' # The correct selector you found
+            'link_selector': 'a.cattable-wrap-cell-info'
         }
     }
 
@@ -43,30 +45,29 @@ def find_product_url(brand: str, name: str, type_model: str, site_code: str, deb
     
     page_html = None
 
-    # --- Use Selenium ONLY for Tennis Warehouse ---
+    # --- Use Selenium with Firefox for Tennis Warehouse ---
     if site_code == 'TW':
         try:
-            service = Service(executable_path=CHROME_DRIVER_PATH)
-            options = webdriver.ChromeOptions()
-            # This line makes the browser run in the background without a visible window.
-            # You can comment it out if you want to see the browser open.
-            options.add_argument('--headless') 
-            options.add_argument("user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36")
+            FIREFOX_DRIVER_PATH = r'C:\Coding Projects\Practice Python\Racket Database\geckodriver.exe' # UPDATE THIS PATH
             
-            driver = webdriver.Chrome(service=service, options=options)
+            # Use the Firefox-specific imports to set up the driver
+            service = FirefoxService(executable_path=FIREFOX_DRIVER_PATH, log_output=os.devnull)
+            options = FirefoxOptions()
+            options.add_argument('--headless')
+            
+            driver = webdriver.Firefox(service=service, options=options)
+            
             driver.get(search_url)
 
-            # --- CRUCIAL: Wait up to 10 seconds for the product links to appear ---
-            print("   (Waiting for JavaScript to load page content...)")
+            print("   (Waiting for page to load...)")
             WebDriverWait(driver, 10).until(
                 EC.presence_of_element_located((By.CSS_SELECTOR, link_selector))
             )
             
-            # Now that the page is loaded, get the final HTML
             page_html = driver.page_source
-            driver.quit() # Close the browser
+            driver.quit()
         except Exception as e:
-            print(f"An error occurred with Selenium: {e}")
+            print(f"   ❌ Unable to connect to Tennis Warehouse. Please check your internet connection.")
             return None
     
     # --- Use simple requests for Tennis Express ---
@@ -77,10 +78,9 @@ def find_product_url(brand: str, name: str, type_model: str, site_code: str, deb
             response.raise_for_status()
             page_html = response.text
         except Exception as e:
-            print(f"An error occurred with requests: {e}")
+            print("   ❌ Unable to connect to Tennis Express. Please check your internet connection.")
             return None
 
-    # --- The rest of the logic to parse the HTML is the same as before ---
     if not page_html:
         return None
 
@@ -122,6 +122,8 @@ def find_product_url(brand: str, name: str, type_model: str, site_code: str, deb
     except Exception as e:
         print(f"An error occurred while parsing the HTML: {e}")
         return None
+
+
 def fetch_prices_from_url(product_url: str) -> dict:
     """
     Scrapes the sale and original price from a given product URL.
@@ -130,28 +132,23 @@ def fetch_prices_from_url(product_url: str) -> dict:
     if not product_url:
         return {}
 
-    # Define the CSS selectors for each site's product page
     SITE_CONFIG = {
         'TE': {
-            # Correct selectors for Tennis Express
             'sale_price_selector': 'span.discounted',
             'original_price_selector': 'del span.amount' 
         },
         'TW': {
-            # --- UPDATE THESE TWO LINES ---
             'sale_price_selector': 'div.price',
             'original_price_selector': 'del'
         }
     }
 
-
-    # Determine which site we are scraping
     site_code = None
     if 'tennisexpress.com' in product_url:
         site_code = 'TE'
     elif 'tennis-warehouse.com' in product_url:
         site_code = 'TW'
-
+    
     if not site_code:
         print(f"   ⚠️ URL not recognized: {product_url}")
         return {}
@@ -160,7 +157,6 @@ def fetch_prices_from_url(product_url: str) -> dict:
     prices = {'sale_price': None, 'original_price': None}
 
     try:
-        # Simple requests is fine for product pages, no need for Selenium here
         headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'}
         response = requests.get(product_url, headers=headers, timeout=20)
         response.raise_for_status()
@@ -174,7 +170,6 @@ def fetch_prices_from_url(product_url: str) -> dict:
             except (ValueError, TypeError):
                 return None
 
-        # Find and clean the sale price
         sale_price_element = soup.select_one(config['sale_price_selector'])
         if sale_price_element:
             prices['sale_price'] = clean_price(sale_price_element.get_text())
@@ -182,7 +177,6 @@ def fetch_prices_from_url(product_url: str) -> dict:
         else:
             print(f"   ⚠️ Sale price not found with selector: {config['sale_price_selector']}")
 
-        # Find and clean the original price
         original_price_element = soup.select_one(config['original_price_selector'])
         if original_price_element:
             prices['original_price'] = clean_price(original_price_element.get_text())
@@ -192,6 +186,7 @@ def fetch_prices_from_url(product_url: str) -> dict:
             prices['original_price'] = prices['sale_price']
 
     except Exception as e:
-        print(f"   An error occurred while fetching prices: {e}")
+        site_name = "Tennis Express" if site_code == 'TE' else "Tennis Warehouse"
+        print(f"   ❌ Error fetching prices from {site_name}. Please check your connection.")
 
     return prices
