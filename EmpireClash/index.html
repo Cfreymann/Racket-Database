@@ -4,7 +4,7 @@
 <meta name="apple-mobile-web-app-title" content="Empire Clash">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Alegreya+SC:wght@700;900&family=Alegreya+Sans:wght@500;700;800&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Pixelify+Sans:wght@400;500;600;700&display=swap">
 <style>
 /* Layout: a phone-shaped column (max 480px) of stacked screens over a war-table backdrop.
    Single theme by design: parchment cards, ink outlines, banner colors. */
@@ -18,8 +18,8 @@
   --red: #b3262b;
   --green: #4f8a3a;
   --muted: #7c6a50;
-  --display: "Alegreya SC", "Palatino Linotype", Palatino, Georgia, serif;
-  --body: "Alegreya Sans", "Gill Sans", "Trebuchet MS", system-ui, sans-serif;
+  --display: "Pixelify Sans", "Courier New", ui-monospace, monospace;
+  --body: "Pixelify Sans", "Courier New", ui-monospace, monospace;
   color-scheme: light;
 }
 html, body { height: 100%; }
@@ -39,11 +39,12 @@ button:focus-visible { outline: 3px solid var(--gold); outline-offset: 2px; }
   padding: 16px max(16px, env(safe-area-inset-right, 0px)) 16px max(16px, env(safe-area-inset-left, 0px));
   overflow-y: auto; -webkit-overflow-scrolling: touch;
 }
-h1, h2, h3 { font-family: var(--display); margin: 0; line-height: 1.05; text-wrap: balance; }
+h1, h2, h3 { font-family: var(--display); margin: 0; line-height: 1.05; text-wrap: balance; font-weight: 700; }
+canvas { image-rendering: crisp-edges; image-rendering: pixelated; }
 .eyebrow { font: 800 12px/1.2 var(--body); letter-spacing: 0.12em; text-transform: uppercase; color: var(--muted); }
 
 .btn {
-  border: 3px solid var(--ink); border-radius: 12px; background: var(--c, var(--red)); color: #fff8e6;
+  border: 3px solid var(--ink); border-radius: 0; background: var(--c, var(--red)); color: #fff8e6;
   font: 900 20px/1 var(--display); letter-spacing: 0.04em; padding: 14px 18px;
   box-shadow: 0 4px 0 var(--ink); transition: transform 0.06s, box-shadow 0.06s;
   display: inline-flex; align-items: center; justify-content: center; gap: 8px;
@@ -51,16 +52,20 @@ h1, h2, h3 { font-family: var(--display); margin: 0; line-height: 1.05; text-wra
 .btn:active { transform: translateY(3px); box-shadow: 0 1px 0 var(--ink); }
 .btn[disabled] { --c: #a49576; cursor: default; opacity: 0.8; }
 .btn[disabled]:active { transform: none; box-shadow: 0 4px 0 var(--ink); }
-.btn.small { font-size: 15px; padding: 8px 12px; border-width: 2px; box-shadow: 0 3px 0 var(--ink); border-radius: 10px; }
+.btn.small { font-size: 15px; padding: 8px 12px; border-width: 2px; box-shadow: 0 3px 0 var(--ink); border-radius: 0; }
 .btn.ghost { --c: var(--parchment-2); color: var(--ink); }
 
-.panel { background: #fbf3dc; border: 3px solid var(--ink); border-radius: 14px; padding: 12px 14px; box-shadow: 0 4px 0 rgba(43,33,24,0.85); }
+.panel { background: #fbf3dc; border: 3px solid var(--ink); border-radius: 0; padding: 12px 14px; box-shadow: 0 4px 0 rgba(43,33,24,0.85); }
 .gold { display: inline-flex; align-items: center; gap: 6px; font: 800 18px/1 var(--body); font-variant-numeric: tabular-nums; }
-.coin { width: 18px; height: 18px; border-radius: 50%; background: radial-gradient(circle at 35% 35%, #ffe38a, var(--gold) 60%, #9a6f10); border: 2px solid var(--ink); flex: none; }
+.coin {
+  width: 18px; height: 18px; flex: none; background: var(--gold);
+  clip-path: polygon(33% 0, 67% 0, 100% 33%, 100% 67%, 67% 100%, 33% 100%, 0 67%, 0 33%);
+  box-shadow: inset -3px -3px 0 #9a6f10, inset 3px 3px 0 #ffe38a;
+}
 
 /* Title */
 #title { justify-content: center; align-items: center; text-align: center; background: radial-gradient(ellipse at 50% 30%, #fbf1d6, var(--parchment) 70%); }
-#title h1 { font-size: clamp(54px, 16vw, 78px); color: var(--red); text-shadow: 3px 3px 0 var(--ink); }
+#title h1 { font-size: clamp(48px, 14vw, 72px); color: var(--red); text-shadow: 3px 3px 0 var(--ink); }
 #title .tag { font: 700 18px/1.35 var(--body); max-width: 30ch; }
 #titleArt { width: 100%; max-width: 420px; height: 170px; }
 .title-buttons { display: flex; flex-direction: column; gap: 14px; width: min(300px, 100%); }
@@ -73,15 +78,15 @@ h1, h2, h3 { font-family: var(--display); margin: 0; line-height: 1.05; text-wra
 .cards { display: flex; flex-direction: column; gap: 14px; width: 100%; }
 .card {
   display: grid; grid-template-columns: 74px 1fr; gap: 12px; align-items: center; text-align: left;
-  background: #fbf3dc; border: 3px solid var(--ink); border-radius: 14px; padding: 10px 12px;
+  background: #fbf3dc; border: 3px solid var(--ink); border-radius: 0; padding: 10px 12px;
   box-shadow: 0 4px 0 var(--ink); position: relative; transition: transform 0.08s;
   animation: deal 0.35s cubic-bezier(.2,1.3,.4,1) both;
 }
 .card:nth-child(2) { animation-delay: 0.08s; } .card:nth-child(3) { animation-delay: 0.16s; }
 @keyframes deal { from { transform: translateY(24px) rotate(-2deg); opacity: 0; } }
 .card:active { transform: translateY(3px); }
-.card canvas { width: 74px; height: 74px; border-radius: 10px; background: var(--parchment-2); border: 2px solid var(--ink); }
-.card .r { position: absolute; top: -10px; right: 12px; font: 900 11px/1 var(--body); letter-spacing: 0.1em; text-transform: uppercase; padding: 4px 8px; border: 2px solid var(--ink); border-radius: 6px; background: var(--rc); color: #fff; }
+.card canvas { width: 74px; height: 74px; border-radius: 0; background: var(--parchment-2); border: 2px solid var(--ink); }
+.card .r { position: absolute; top: -10px; right: 12px; font: 900 11px/1 var(--body); letter-spacing: 0.1em; text-transform: uppercase; padding: 4px 8px; border: 2px solid var(--ink); border-radius: 0; background: var(--rc); color: #fff; }
 .card h3 { font-size: 21px; }
 .card p { margin: 3px 0 0; font: 600 15px/1.3 var(--body); }
 .card .kind { font: 800 11px/1 var(--body); letter-spacing: 0.1em; text-transform: uppercase; color: var(--muted); }
@@ -98,21 +103,21 @@ h1, h2, h3 { font-family: var(--display); margin: 0; line-height: 1.05; text-wra
 .enemy .years { font: 700 13px/1.2 var(--body); color: var(--muted); }
 .enemy .blurb { margin: 0; font: 600 14px/1.35 var(--body); }
 .troops { display: flex; flex-wrap: wrap; gap: 8px; }
-.troop { display: flex; align-items: center; gap: 6px; background: rgba(255,255,255,0.55); border: 2px solid var(--ink); border-radius: 10px; padding: 3px 9px 3px 3px; font: 800 14px/1.1 var(--body); }
+.troop { display: flex; align-items: center; gap: 6px; background: rgba(255,255,255,0.55); border: 2px solid var(--ink); border-radius: 0; padding: 3px 9px 3px 3px; font: 800 14px/1.1 var(--body); }
 .troop canvas { width: 36px; height: 36px; }
 .troop small { display: block; font-weight: 600; font-size: 11px; color: var(--muted); }
 .section-title { display: flex; justify-content: space-between; align-items: baseline; }
 .section-title h3 { font-size: 20px; }
 .roster { display: flex; flex-direction: column; gap: 8px; }
-.unit-row { display: grid; grid-template-columns: 44px 1fr auto; gap: 10px; align-items: center; background: #fbf3dc; border: 2px solid var(--ink); border-radius: 12px; padding: 6px 8px; }
+.unit-row { display: grid; grid-template-columns: 44px 1fr auto; gap: 10px; align-items: center; background: #fbf3dc; border: 2px solid var(--ink); border-radius: 0; padding: 6px 8px; }
 .unit-row canvas { width: 44px; height: 44px; }
 .unit-row .name { font: 800 16px/1.1 var(--body); }
 .unit-row .stats { font: 600 12.5px/1.3 var(--body); color: var(--muted); font-variant-numeric: tabular-nums; }
 .unit-row .count { font: 900 20px/1 var(--display); margin-right: 6px; }
 .unit-row .right { display: flex; align-items: center; gap: 4px; }
 .chips { display: flex; flex-wrap: wrap; gap: 6px; }
-.chip { background: var(--parchment-2); border: 2px solid var(--ink); border-radius: 999px; padding: 3px 10px; font: 700 13px/1.2 var(--body); }
-.march { position: sticky; bottom: 0; margin-top: auto; padding-top: 8px; background: linear-gradient(transparent, var(--parchment) 30%); }
+.chip { background: var(--parchment-2); border: 2px solid var(--ink); border-radius: 0; padding: 3px 10px; font: 700 13px/1.2 var(--body); }
+.march { position: sticky; bottom: -16px; margin: auto 0 -16px; padding: 8px 0 16px; background: linear-gradient(transparent, var(--parchment) 30%); }
 .march .btn { width: 100%; font-size: 24px; }
 
 /* Battle */
@@ -120,7 +125,7 @@ h1, h2, h3 { font-family: var(--display); margin: 0; line-height: 1.05; text-wra
 .hud { display: flex; flex-direction: column; gap: 6px; padding: 10px 14px 8px; background: var(--parchment); border-bottom: 3px solid var(--ink); }
 .hud .line { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
 .hud .vs { font: 900 16px/1.1 var(--display); }
-.tug { position: relative; height: 16px; border: 2px solid var(--ink); border-radius: 999px; overflow: hidden; background: var(--ec, var(--red)); }
+.tug { position: relative; height: 16px; border: 2px solid var(--ink); border-radius: 0; overflow: hidden; background: var(--ec, var(--red)); }
 .tug i { position: absolute; inset: 0 auto 0 0; width: 50%; background: var(--blue); transition: width 0.25s; border-right: 2px solid var(--ink); }
 .hud .counts { display: flex; justify-content: space-between; font: 800 13px/1 var(--body); font-variant-numeric: tabular-nums; }
 #field { flex: 1; width: 100%; display: block; touch-action: none; }
@@ -333,8 +338,24 @@ function drawCards(r) {
   return out.map((c) => c.id);
 }
 
-// =====================================================================  ART (simple 2D soldiers)
+// =====================================================================  ART (pixel-art 2D soldiers)
+// Everything is drawn at half resolution, edges are snapped to fully on/off, and the canvas is
+// scaled up with nearest-neighbor, so the soldiers come out as crisp pixel art.
 const INK = "#2b2118";
+const PX = 2;                 // screen pixels per art pixel
+let SHADOW = null;            // solid shadow color under troops (null = none)
+function crisp(ctx, w, h, cut = 90) {
+  const img = ctx.getImageData(0, 0, w, h), d = img.data;
+  for (let i = 3; i < d.length; i += 4) d[i] = d[i] < cut ? 0 : 255;
+  ctx.putImageData(img, 0, 0);
+}
+function pixelCanvas(canvas) {
+  const r = canvas.getBoundingClientRect();
+  canvas.width = Math.max(1, Math.round(r.width / PX)); canvas.height = Math.max(1, Math.round(r.height / PX));
+  const g = canvas.getContext("2d", { willReadFrequently: true });
+  g.setTransform(1 / PX, 0, 0, 1 / PX, 0, 0);
+  return [g, r.width, r.height];
+}
 function rr(g, x, y, w, h, r) { g.beginPath(); g.roundRect(x, y, w, h, r); }
 function circ(g, x, y, r) { g.beginPath(); g.arc(x, y, r, 0, Math.PI * 2); }
 function shade(hex, amt) {   // lighten (amt > 0) or darken (amt < 0) a #rrggbb color
@@ -348,8 +369,10 @@ function drawTroop(g, key, E, t, flash, swing) {
   const U = UNITS[key];
   g.lineJoin = "round"; g.lineCap = "round";
   // shadow
-  g.fillStyle = "rgba(0,0,0,0.22)"; g.beginPath();
-  g.ellipse(0, 1, U.mount === "elephant" ? 22 : U.mount ? 15 : 8, 3.5, 0, 0, Math.PI * 2); g.fill();
+  if (SHADOW) {
+    g.fillStyle = SHADOW; g.beginPath();
+    g.ellipse(0, 1, U.mount === "elephant" ? 22 : U.mount ? 15 : 8, 3.5, 0, 0, Math.PI * 2); g.fill();
+  }
   switch (U.mount) {
     case "horse": drawHorse(g, E, t, U.barded); drawPerson(g, U, E, t, flash, swing, -10, true); break;
     case "chariot": drawChariot(g, E, t); drawPerson(g, U, E, t, flash, swing, -9, true, -4); break;
@@ -516,18 +539,20 @@ function drawCoinsIcon(g) {
 }
 // Paint a troop (or icon) centered into a small canvas element.
 function paintIcon(canvas, what, E, zoom = 1) {
-  const r = canvas.getBoundingClientRect(), d = Math.min(window.devicePixelRatio || 1, 3);
-  canvas.width = Math.round(r.width * d); canvas.height = Math.round(r.height * d);
-  const g = canvas.getContext("2d"); g.setTransform(d, 0, 0, d, 0, 0);
-  const s = (r.width / 44) * zoom;
-  g.translate(r.width / 2, r.height * 0.5); g.scale(s, s);
-  if (what === "banner") return drawBannerIcon(g, PLAYER.primary);
-  if (what === "coins") return drawCoinsIcon(g);
-  const U = UNITS[what];
-  const big = U.mount === "elephant" ? 0.6 : U.mount ? 0.85 : 1.15;
-  g.scale(big, big);
-  g.translate(U.mount === "elephant" ? -4 : 0, U.mount === "elephant" ? 22 : U.mount ? 15 : 14);
-  drawTroop(g, what, E, 0.3, 0, 0);
+  const [g, w, h] = pixelCanvas(canvas);
+  const s = (w / 44) * zoom;
+  g.translate(w / 2, h * 0.5); g.scale(s, s);
+  SHADOW = null;
+  if (what === "banner") drawBannerIcon(g, PLAYER.primary);
+  else if (what === "coins") drawCoinsIcon(g);
+  else {
+    const U = UNITS[what];
+    const big = U.mount === "elephant" ? 0.6 : U.mount ? 0.85 : 1.15;
+    g.scale(big, big);
+    g.translate(U.mount === "elephant" ? -4 : 0, U.mount === "elephant" ? 22 : U.mount ? 15 : 14);
+    drawTroop(g, what, E, 0.3, 0, 0);
+  }
+  crisp(g, canvas.width, canvas.height);
 }
 
 // =====================================================================  BATTLE
@@ -559,7 +584,7 @@ class Battle {
     const order = { inf: 0, spear: 0, beast: 0, cav: 1, ranged: 2, siege: 3 };
     const rows = [[], [], [], []];
     for (const u of list) rows[order[u.U.role]].push(u);
-    const gap = 24, perLine = Math.max(4, Math.floor((this.W - 30) / gap));
+    const gap = 26, perLine = Math.max(4, Math.floor((this.W - 30) / gap));
     let lineIdx = 0;
     for (const row of rows) {
       for (let i = 0; i < row.length; i += perLine) {
@@ -649,15 +674,29 @@ class Battle {
       }
     } else this.endT += dt;
   }
-  draw(g) {
-    const W = this.W, H = this.H;
-    // field
-    g.fillStyle = "#7ea456"; g.fillRect(0, 0, W, H);
-    g.fillStyle = "rgba(255,255,255,0.05)"; for (let y = 0; y < H; y += 40) g.fillRect(0, y, W, 20);
-    g.fillStyle = "rgba(120, 84, 48, 0.18)"; g.beginPath(); g.ellipse(W * 0.5, H * 0.5, W * 0.45, H * 0.12, 0, 0, Math.PI * 2); g.fill();
-    g.fillStyle = shade(this.E.primary, 0.1); g.globalAlpha = 0.25; g.fillRect(0, 0, W, 18); g.globalAlpha = 1;
-    g.fillStyle = PLAYER.primary; g.globalAlpha = 0.25; g.fillRect(0, H - 18, W, 18); g.globalAlpha = 1;
-    for (const m of this.marks) { g.fillStyle = `rgba(90,60,30,${0.4 * (1 - m.t / 1.2)})`; g.beginPath(); g.ellipse(m.x, m.y, 24, 9, 0, 0, Math.PI * 2); g.fill(); }
+  // Static grass, built once per battle at art resolution (w × h art pixels).
+  buildGround(w, h) {
+    const c = document.createElement("canvas"); c.width = w; c.height = h;
+    const g = c.getContext("2d");
+    g.fillStyle = "#7ea456"; g.fillRect(0, 0, w, h);
+    for (let y = 0; y < h; y += 20) { g.fillStyle = "#83a95b"; g.fillRect(0, y, w, 10); }
+    g.fillStyle = "#9c8a55"; g.beginPath(); g.ellipse(w / 2, h / 2, w * 0.45, h * 0.12, 0, 0, Math.PI * 2); g.fill();
+    g.fillStyle = "#a8955e"; g.beginPath(); g.ellipse(w / 2, h / 2, w * 0.38, h * 0.08, 0, 0, Math.PI * 2); g.fill();
+    let seed = 7; const next = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
+    for (let i = 0; i < (w * h) / 18; i++) {           // grass specks and tufts
+      const x = Math.floor(next() * w), y = Math.floor(next() * h), v = next();
+      g.fillStyle = v < 0.5 ? "#6b9146" : v < 0.85 ? "#93b86a" : "#5d823b";
+      g.fillRect(x, y, 1, 1);
+      if (v > 0.93) { g.fillRect(x - 1, y - 1, 1, 1); g.fillRect(x + 1, y - 1, 1, 1); }
+    }
+    g.fillStyle = shade(this.E.primary, 0.35); g.fillRect(0, 0, w, 4);
+    g.fillStyle = shade(PLAYER.primary, 0.35); g.fillRect(0, h - 4, w, 4);
+    return c;
+  }
+  drawMarks(g) {
+    for (const m of this.marks) { g.fillStyle = `rgba(90,60,30,${0.45 * (1 - m.t / 1.2)})`; g.beginPath(); g.ellipse(m.x, m.y, 24, 9, 0, 0, Math.PI * 2); g.fill(); }
+  }
+  drawActors(g) {
     // troops, back to front
     const sorted = [...this.units].sort((a, b) => a.y - b.y);
     for (const u of sorted) {
@@ -667,13 +706,13 @@ class Battle {
         g.strokeStyle = u.side === 0 ? "rgba(47,95,179,0.85)" : "rgba(179,38,43,0.85)"; g.lineWidth = 2;
         g.beginPath(); g.ellipse(0, 1, u.rad + 2, 4, 0, 0, Math.PI * 2); g.stroke();
       }
-      g.scale(u.facing * 1.2, 1.2);
+      g.scale(u.facing * 1.3, 1.3);
       drawTroop(g, u.key, u.E, u.anim, u.flash, u.swing);
       g.restore();
       if (!u.dead && u.hp < u.maxHp) {
-        const w = u.U.mount === "elephant" ? 38 : 22, top = u.U.mount === "elephant" ? 60 : u.U.mount ? 45 : 40;
-        g.fillStyle = INK; g.fillRect(u.x - w / 2 - 1, u.y - top - 1, w + 2, 5);
-        g.fillStyle = u.side === 0 ? "#5fb0ff" : "#ff6b5f"; g.fillRect(u.x - w / 2, u.y - top, w * Math.max(0, u.hp / u.maxHp), 3);
+        const w = u.U.mount === "elephant" ? 40 : 24, top = u.U.mount === "elephant" ? 64 : u.U.mount ? 48 : 44;
+        g.fillStyle = INK; g.fillRect(u.x - w / 2 - 2, u.y - top - 2, w + 4, 6);
+        g.fillStyle = u.side === 0 ? "#5fb0ff" : "#ff6b5f"; g.fillRect(u.x - w / 2, u.y - top, w * Math.max(0, u.hp / u.maxHp), 2);
       }
     }
     // projectiles, lobbed in an arc
@@ -711,13 +750,15 @@ function title() {
   requestAnimationFrame(drawTitleArt);
 }
 function drawTitleArt() {
-  const c = $("titleArt"), r = c.getBoundingClientRect(), d = Math.min(window.devicePixelRatio || 1, 3);
-  c.width = r.width * d; c.height = r.height * d;
-  const g = c.getContext("2d"); g.setTransform(d, 0, 0, d, 0, 0);
+  const c = $("titleArt");
+  const [g, w, h] = pixelCanvas(c), r = { width: w, height: h };
   const lineup = [["sword", PLAYER, 1], ["knight", PLAYER, 1], ["archer", PLAYER, 1], ["legionary", EMPIRES.rome, -1], ["lancer", EMPIRES.mongol, -1], ["elephant", EMPIRES.persia, -1], ["jaguar", EMPIRES.aztec, -1], ["chariot", EMPIRES.egypt, -1]];
   const W = r.width, step = W / (lineup.length + 1);
-  g.fillStyle = "#7ea456"; rr(g, 0, r.height * 0.62, W, r.height * 0.38, 12); g.fill();
+  g.fillStyle = "#7ea456"; g.fillRect(0, r.height * 0.62, W, r.height * 0.38);
+  g.fillStyle = "#6b9146"; for (let x = 6; x < W; x += 14) g.fillRect(x, r.height * 0.7 + (x % 28), 4, 2);
+  SHADOW = "#668c45";
   lineup.forEach(([k, E, f], i) => { g.save(); g.translate(step * (i + 1), r.height * 0.9); g.scale(1.5 * f, 1.5); drawTroop(g, k, E, i, 0, 0); g.restore(); });
+  crisp(g, c.width, c.height);
 }
 
 function startDraft(first) {
@@ -804,23 +845,30 @@ $("roster").addEventListener("click", (e) => {
 $("marchBtn").onclick = () => startBattle();
 
 const field = $("field"), fg = field.getContext("2d");
+const layer = document.createElement("canvas"), lg = layer.getContext("2d", { willReadFrequently: true });
 function startBattle() {
   run.stage = "battle"; persist();
   show("battle");
   const E = EMPIRES[run.enemy.emp];
   $("hudTitle").textContent = `Your Banner vs ${E.short}`;
   $("tug").style.setProperty("--ec", E.primary);
-  const r = field.getBoundingClientRect(), d = Math.min(window.devicePixelRatio || 1, 2);
-  field.width = r.width * d; field.height = r.height * d;
+  const r = field.getBoundingClientRect();
+  const aw = Math.round(r.width / PX), ah = Math.round(r.height / PX);
+  field.width = aw; field.height = ah; layer.width = aw; layer.height = ah;
   battle = new Battle(run, r.width, r.height);
-  battle.dpr = d;
+  const ground = battle.buildGround(aw, ah);
+  SHADOW = "#668c45";
   let last = performance.now();
   cancelAnimationFrame(raf);
   const loop = (now) => {
     const dt = Math.min(0.05, (now - last) / 1000); last = now;
     for (let i = 0; i < speed; i++) battle.tick(dt);
-    fg.setTransform(battle.dpr, 0, 0, battle.dpr, 0, 0);
-    battle.draw(fg);
+    fg.setTransform(1, 0, 0, 1, 0, 0); fg.drawImage(ground, 0, 0);
+    fg.setTransform(1 / PX, 0, 0, 1 / PX, 0, 0); battle.drawMarks(fg);
+    lg.setTransform(1, 0, 0, 1, 0, 0); lg.clearRect(0, 0, aw, ah);
+    lg.setTransform(1 / PX, 0, 0, 1 / PX, 0, 0); battle.drawActors(lg);
+    crisp(lg, aw, ah);
+    fg.setTransform(1, 0, 0, 1, 0, 0); fg.drawImage(layer, 0, 0);
     const a = battle.alive(0), b = battle.alive(1), ha = battle.sideHp(0), hb = battle.sideHp(1);
     $("hudMine").textContent = `You: ${a}`; $("hudTheirs").textContent = `${E.short}: ${b}`;
     $("tugFill").style.width = (100 * ha / Math.max(1, ha + hb)) + "%";
