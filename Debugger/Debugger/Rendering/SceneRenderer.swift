@@ -15,6 +15,9 @@ enum SceneRenderer {
         for swat in scene.swats {
             ToolRenderer.drawSwat(ctx, swat)
         }
+        for whiff in scene.whiffs {
+            ToolRenderer.drawWhiff(ctx, whiff)
+        }
         if let target = scene.sprayNozzleTarget {
             ToolRenderer.drawHeldSprayCan(ctx, aimingAt: target, color: scene.sprayColor)
         }
@@ -39,6 +42,72 @@ enum SceneRenderer {
             c.draw(outline, at: CGPoint(x: p.x + dx, y: p.y + dy))
         }
         c.draw(fill, at: p)
+    }
+}
+
+/// Static level background: kitchen tiles or a red-and-white picnic blanket.
+struct FloorView: View {
+    var style: FloorStyle = .kitchen
+
+    var body: some View {
+        switch style {
+        case .kitchen: KitchenFloor()
+        case .picnic: PicnicBlanket()
+        }
+    }
+}
+
+struct PicnicBlanket: View {
+    var body: some View {
+        Canvas { ctx, size in
+            let full = CGRect(origin: .zero, size: size)
+            ctx.fill(Path(full), with: .color(Color(red: 1.0, green: 0.97, blue: 0.925)))
+
+            let band: CGFloat = 36
+            var stripes = Path()
+            var x: CGFloat = 0
+            while x < size.width + band {
+                stripes.addRect(CGRect(x: x, y: 0, width: band, height: size.height))
+                x += band * 2
+            }
+            ctx.fill(stripes, with: .color(Color(red: 0.84, green: 0.20, blue: 0.17).opacity(0.42)))
+            var rows = Path()
+            var y: CGFloat = 0
+            while y < size.height + band {
+                rows.addRect(CGRect(x: 0, y: y, width: size.width, height: band))
+                y += band * 2
+            }
+            ctx.fill(rows, with: .color(Color(red: 0.84, green: 0.20, blue: 0.17).opacity(0.42)))
+
+            // Woven texture.
+            var weave = Path()
+            var line: CGFloat = 0
+            while line < size.height {
+                weave.move(to: CGPoint(x: 0, y: line))
+                weave.addLine(to: CGPoint(x: size.width, y: line))
+                line += 6
+            }
+            ctx.stroke(weave, with: .color(Color(red: 0.63, green: 0.12, blue: 0.10).opacity(0.18)), lineWidth: 1)
+
+            // Bun crumbs (deterministic).
+            var crumbs = Path()
+            var seed: UInt64 = 777
+            func next() -> CGFloat {
+                seed = seed &* 6364136223846793005 &+ 1442695040888963407
+                return CGFloat((seed >> 33) % 10_000) / 10_000
+            }
+            for _ in 0..<30 {
+                let r = 1.5 + next() * 3
+                crumbs.addEllipse(in: CGRect(x: next() * size.width, y: next() * size.height, width: r * 2, height: r * 1.5))
+            }
+            ctx.fill(crumbs, with: .color(Color(red: 0.71, green: 0.51, blue: 0.25)))
+
+            let center = CGPoint(x: size.width / 2, y: size.height / 2)
+            ctx.fill(Path(full), with: .radialGradient(
+                Gradient(colors: [.clear, Palette.outline.opacity(0.2)]),
+                center: center, startRadius: min(size.width, size.height) * 0.35,
+                endRadius: max(size.width, size.height) * 0.75))
+        }
     }
 }
 

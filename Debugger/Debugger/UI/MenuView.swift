@@ -6,9 +6,9 @@ struct MenuView: View {
     var body: some View {
         ZStack {
             KitchenFloor().ignoresSafeArea()
-            MenuBugs().ignoresSafeArea().allowsHitTesting(false)
+            MenuBugs(showFly: app.unlockedLevel >= 2).ignoresSafeArea().allowsHitTesting(false)
 
-            VStack(spacing: 18) {
+            VStack(spacing: 16) {
                 HStack {
                     Spacer()
                     CoinBadge(amount: app.coins)
@@ -17,18 +17,26 @@ struct MenuView: View {
                 Spacer(minLength: 0)
 
                 VStack(spacing: 0) {
-                    CartoonText("DEBUGGER", size: 60, fill: Palette.roachRed, strokeWidth: 4)
+                    CartoonText("DEBUGGER", size: 58, fill: Palette.roachRed, strokeWidth: 4)
                     CartoonText("squash 'em fast!", size: 20, fill: .white, strokeWidth: 2.5)
                 }
                 .rotationEffect(.degrees(-4))
 
                 Mascot()
-                    .frame(maxWidth: 230, minHeight: 110, maxHeight: 230)
+                    .frame(maxWidth: 190, minHeight: 90, maxHeight: 190)
 
-                LevelCard(level: app.currentLevel, stars: app.bestStars[app.currentLevel.number] ?? 0)
-
-                Button("PLAY") { app.playCurrentLevel() }
-                    .buttonStyle(CartoonButtonStyle(color: Palette.sprayGreen))
+                VStack(spacing: 14) {
+                    ForEach(Array(LevelConfig.all.enumerated()), id: \.offset) { index, level in
+                        LevelCard(
+                            level: level,
+                            stars: app.bestStars[level.number] ?? 0,
+                            locked: !app.isUnlocked(level),
+                            isNew: index > 0 && app.isUnlocked(level) && (app.bestStars[level.number] ?? 0) == 0
+                        ) {
+                            app.play(levelIndex: index)
+                        }
+                    }
+                }
 
                 Button("UPGRADES") { app.showShop = true }
                     .buttonStyle(CartoonButtonStyle(color: Palette.swatterBlue))
@@ -41,27 +49,59 @@ struct MenuView: View {
     }
 }
 
+/// A tappable level row: tap to play. Locked levels say what unlocks them.
 private struct LevelCard: View {
     let level: LevelConfig
     let stars: Int
+    let locked: Bool
+    let isNew: Bool
+    let action: () -> Void
 
     var body: some View {
-        HStack(spacing: 12) {
-            BugIcon(size: 40)
-            VStack(alignment: .leading, spacing: 2) {
-                Text("LEVEL \(level.number)")
-                    .font(.system(size: 13, weight: .heavy, design: .rounded))
-                    .foregroundStyle(Palette.roachRed)
-                Text(level.title)
-                    .font(.system(size: 20, weight: .black, design: .rounded))
-                    .foregroundStyle(Palette.outline)
+        Button(action: action) {
+            HStack(spacing: 12) {
+                BugIcon(kind: level.icon, size: 42)
+                    .opacity(locked ? 0.45 : 1)
+                VStack(alignment: .leading, spacing: 2) {
+                    HStack(spacing: 6) {
+                        Text("LEVEL \(level.number)")
+                            .font(.system(size: 13, weight: .heavy, design: .rounded))
+                            .foregroundStyle(Palette.roachRed)
+                        if isNew { NewTag(text: "NEW") }
+                    }
+                    Text(level.title)
+                        .font(.system(size: 20, weight: .black, design: .rounded))
+                        .foregroundStyle(Palette.outline.opacity(locked ? 0.45 : 1))
+                    if locked {
+                        Text("Clear Level \(level.number - 1) to unlock")
+                            .font(.system(size: 13, weight: .bold, design: .rounded))
+                            .foregroundStyle(Palette.outline.opacity(0.7))
+                    }
+                }
+                Spacer()
+                if locked {
+                    Image(systemName: "lock.fill")
+                        .font(.system(size: 22, weight: .black))
+                        .foregroundStyle(Palette.outline)
+                } else {
+                    StarsRow(stars: stars, size: 20, animate: true)
+                }
             }
-            Spacer()
-            StarsRow(stars: stars, size: 22, animate: true)
+            .frame(maxWidth: 320)
+            .padding(.vertical, -4)
+            .cartoonPanel(fill: locked ? Color(red: 0.91, green: 0.88, blue: 0.82) : Palette.cream)
         }
-        .frame(maxWidth: 320)
-        .padding(.vertical, -4)
-        .cartoonPanel()
+        .buttonStyle(PressDownStyle())
+        .disabled(locked)
+    }
+}
+
+/// Nudges a panel down when pressed, like the cartoon buttons.
+private struct PressDownStyle: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .offset(y: configuration.isPressed ? 3 : 0)
+            .animation(.spring(response: 0.2, dampingFraction: 0.6), value: configuration.isPressed)
     }
 }
 
@@ -82,8 +122,10 @@ private struct Mascot: View {
     }
 }
 
-/// A few roaches running laps around the menu.
+/// A few bugs running laps around the menu.
 private struct MenuBugs: View {
+    let showFly: Bool
+
     private struct Runner {
         let kind: BugKind
         let ax: CGFloat, ay: CGFloat
@@ -96,6 +138,7 @@ private struct MenuBugs: View {
         Runner(kind: .zoomer, ax: 0.45, ay: 0.40, wx: 0.47, wy: 0.35, px: 2.1, py: 0.3),
         Runner(kind: .roach, ax: 0.38, ay: 0.46, wx: 0.21, wy: 0.29, px: 4.0, py: 2.6),
         Runner(kind: .bigRoach, ax: 0.40, ay: 0.42, wx: 0.17, wy: 0.13, px: 1.0, py: 4.4),
+        Runner(kind: .fly, ax: 0.44, ay: 0.45, wx: 0.53, wy: 0.41, px: 3.1, py: 1.9),
     ]
 
     var body: some View {
@@ -104,14 +147,15 @@ private struct MenuBugs: View {
             Canvas { ctx, size in
                 var c = ctx
                 c.opacity = 0.9
-                for r in runners {
+                for r in runners where showFly || r.kind != .fly {
                     let x = size.width / 2 + r.ax * size.width * CGFloat(sin(r.wx * t + r.px))
                     let y = size.height / 2 + r.ay * size.height * CGFloat(sin(r.wy * t + r.py))
                     let vx = r.ax * size.width * CGFloat(r.wx * cos(r.wx * t + r.px))
                     let vy = r.ay * size.height * CGFloat(r.wy * cos(r.wy * t + r.py))
                     let speed = hypot(vx, vy)
-                    BugRenderer.draw(c, kind: r.kind, at: CGPoint(x: x, y: y), heading: atan2(vy, vx),
-                                     legPhase: CGFloat(t) * (4 + speed * 0.05))
+                    let phase = r.kind.isFlier ? CGFloat(t.truncatingRemainder(dividingBy: 1000)) * 45
+                                               : CGFloat(t.truncatingRemainder(dividingBy: 1000)) * (4 + speed * 0.05)
+                    BugRenderer.draw(c, kind: r.kind, at: CGPoint(x: x, y: y), heading: atan2(vy, vx), legPhase: phase)
                 }
             }
         }

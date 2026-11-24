@@ -13,19 +13,21 @@ enum UpgradeKind: CaseIterable, Identifiable {
     }
 }
 
-/// One tier of fly swatter. Tapping the screen swats everything inside `radius`.
+/// One tier of fly swatter. Tapping the screen swats everything inside `radius`,
+/// then the swatter needs `cooldown` seconds to recharge before it can swat again.
 struct SwatterStats {
     let name: String
     let radius: CGFloat
     let damage: Double
+    let cooldown: Double
     let color: Color
 
     static let tiers: [SwatterStats] = [
-        SwatterStats(name: "Rolled-Up Newspaper", radius: 38, damage: 1.0, color: Color(red: 0.86, green: 0.84, blue: 0.78)),
-        SwatterStats(name: "Plastic Swatter", radius: 46, damage: 1.5, color: Color(red: 0.22, green: 0.56, blue: 0.95)),
-        SwatterStats(name: "Wire Mesh Swatter", radius: 54, damage: 2.0, color: Color(red: 0.93, green: 0.35, blue: 0.27)),
-        SwatterStats(name: "Double Swatter", radius: 64, damage: 3.0, color: Color(red: 0.58, green: 0.36, blue: 0.86)),
-        SwatterStats(name: "Mega Swatter 9000", radius: 76, damage: 4.0, color: Color(red: 1.00, green: 0.76, blue: 0.16)),
+        SwatterStats(name: "Rolled-Up Newspaper", radius: 38, damage: 1.0, cooldown: 0.55, color: Color(red: 0.86, green: 0.84, blue: 0.78)),
+        SwatterStats(name: "Plastic Swatter", radius: 46, damage: 1.5, cooldown: 0.45, color: Color(red: 0.22, green: 0.56, blue: 0.95)),
+        SwatterStats(name: "Wire Mesh Swatter", radius: 54, damage: 2.0, cooldown: 0.36, color: Color(red: 0.93, green: 0.35, blue: 0.27)),
+        SwatterStats(name: "Double Swatter", radius: 64, damage: 3.0, cooldown: 0.28, color: Color(red: 0.58, green: 0.36, blue: 0.86)),
+        SwatterStats(name: "Mega Swatter 9000", radius: 76, damage: 4.0, cooldown: 0.20, color: Color(red: 1.00, green: 0.76, blue: 0.16)),
     ]
 
     /// `upgradeCosts[i]` buys tier `i + 1`.

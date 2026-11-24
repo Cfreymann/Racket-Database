@@ -5,15 +5,16 @@ struct GameView: View {
     @Environment(\.scenePhase) private var scenePhase
     private let onQuit: () -> Void
 
-    init(level: LevelConfig, swatter: SwatterStats, spray: SprayStats,
+    init(levelIndex: Int, level: LevelConfig, swatter: SwatterStats, spray: SprayStats, sprayEnabled: Bool,
          onFinish: @escaping (LevelResult) -> Void, onQuit: @escaping () -> Void) {
-        _engine = StateObject(wrappedValue: GameEngine(level: level, swatter: swatter, spray: spray, onFinish: onFinish))
+        _engine = StateObject(wrappedValue: GameEngine(levelIndex: levelIndex, level: level, swatter: swatter,
+                                                       spray: spray, sprayEnabled: sprayEnabled, onFinish: onFinish))
         self.onQuit = onQuit
     }
 
     var body: some View {
         ZStack {
-            KitchenFloor().ignoresSafeArea()
+            FloorView(style: engine.level.floor).ignoresSafeArea()
 
             GeometryReader { geo in
                 TimelineView(.animation(minimumInterval: nil, paused: engine.phase == .paused)) { _ in
@@ -47,7 +48,8 @@ struct GameView: View {
     private var overlay: some View {
         switch engine.phase {
         case .countdown:
-            CountdownOverlay(level: engine.level, count: Int(ceil(engine.countdown)))
+            CountdownOverlay(level: engine.level, sprayEnabled: engine.sprayEnabled,
+                             sprayColor: engine.spray.color, count: Int(ceil(engine.countdown)))
                 .allowsHitTesting(false)
         case .playing:
             if engine.elapsed < 0.7 {
@@ -96,18 +98,21 @@ private struct HUDView: View {
                     .allowsHitTesting(false)
             }
 
-            QuotaBar(kills: engine.kills, quota: engine.level.quota)
+            QuotaBar(icon: engine.level.icon, kills: engine.kills, quota: engine.level.quota)
                 .allowsHitTesting(false)
 
             Spacer()
 
-            HStack(alignment: .bottom) {
-                if engine.phase == .playing && engine.elapsed < 7 {
-                    ControlsHint()
+            HStack(alignment: .bottom, spacing: 10) {
+                SwatBadge(fraction: engine.cooldownFraction, color: engine.swatter.color)
+                if engine.phase == .countdown || (engine.phase == .playing && engine.elapsed < 7) {
+                    ControlsHint(sprayEnabled: engine.sprayEnabled)
                         .transition(.opacity)
                 }
                 Spacer()
-                SprayMeter(fraction: engine.sprayFraction, active: engine.isSpraying, color: engine.spray.color)
+                if engine.sprayEnabled {
+                    SprayMeter(fraction: engine.sprayFraction, active: engine.isSpraying, color: engine.spray.color)
+                }
             }
             .allowsHitTesting(false)
         }
@@ -139,13 +144,14 @@ private struct TimerPill: View {
 }
 
 private struct QuotaBar: View {
+    let icon: BugKind
     let kills: Int
     let quota: Int
 
     var body: some View {
         let fraction = min(1, CGFloat(kills) / CGFloat(max(1, quota)))
         HStack(spacing: 8) {
-            BugIcon(size: 30)
+            BugIcon(kind: icon, size: 30)
             GeometryReader { geo in
                 ZStack(alignment: .leading) {
                     Capsule().fill(Palette.cream)
@@ -162,6 +168,30 @@ private struct QuotaBar: View {
             }
             .frame(height: 24)
         }
+    }
+}
+
+/// Swatter icon with a dark pie that sweeps away as the swatter recharges.
+private struct SwatBadge: View {
+    let fraction: Double
+    let color: Color
+
+    var body: some View {
+        let ready = fraction <= 0
+        ZStack {
+            Circle().fill(Palette.cream)
+            SwatterIcon(color: color, size: 50)
+            // A circle stroked as wide as its own diameter fills a pie wedge.
+            Circle()
+                .trim(from: 0, to: CGFloat(min(1, fraction)))
+                .stroke(Palette.outline.opacity(0.55), lineWidth: 30)
+                .frame(width: 30, height: 30)
+                .rotationEffect(.degrees(-90))
+            Circle().stroke(Palette.outline, lineWidth: 3)
+        }
+        .frame(width: 62, height: 62)
+        .overlay(Circle().stroke(Palette.gold, lineWidth: 3).padding(-4).opacity(ready ? 1 : 0))
+        .accessibilityLabel(ready ? "Swatter ready" : "Swatter recharging")
     }
 }
 
@@ -187,10 +217,17 @@ private struct SprayMeter: View {
 }
 
 private struct ControlsHint: View {
+    let sprayEnabled: Bool
+
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
             Label("Tap to SWAT", systemImage: "hand.tap.fill")
-            Label("Drag to SPRAY", systemImage: "hand.draw.fill")
+            if sprayEnabled {
+                Label("Drag to SPRAY", systemImage: "hand.draw.fill")
+            } else {
+                Text("Wait for the swatter to recharge")
+                    .font(.system(size: 13, weight: .bold, design: .rounded))
+            }
         }
         .font(.system(size: 15, weight: .heavy, design: .rounded))
         .foregroundStyle(Palette.outline)
@@ -205,6 +242,8 @@ private struct ControlsHint: View {
 
 private struct CountdownOverlay: View {
     let level: LevelConfig
+    let sprayEnabled: Bool
+    let sprayColor: Color
     let count: Int
 
     var body: some View {
@@ -224,11 +263,31 @@ private struct CountdownOverlay: View {
                         .multilineTextAlignment(.center)
                     HStack(spacing: 16) {
                         Label("Tap = swat", systemImage: "hand.tap.fill")
-                        Label("Drag = spray", systemImage: "hand.draw.fill")
+                        if sprayEnabled {
+                            Label("Drag = spray", systemImage: "hand.draw.fill")
+                        }
                     }
                     .font(.system(size: 14, weight: .heavy, design: .rounded))
                     .foregroundStyle(Palette.roachRed)
                     .padding(.top, 4)
+
+                    if level.newBug != nil || (sprayEnabled && level.number == LevelConfig.sprayUnlockLevel) {
+                        Rectangle().fill(Palette.outline.opacity(0.15)).frame(height: 2).padding(.vertical, 4)
+                        VStack(alignment: .leading, spacing: 8) {
+                            if let bug = level.newBug {
+                                NewsRow(tag: "NEW BUG", title: bug.displayName,
+                                        detail: "Darts around, then stops to hover. Swat it while it hovers!") {
+                                    BugIcon(kind: bug, size: 40)
+                                }
+                            }
+                            if sprayEnabled && level.number == LevelConfig.sprayUnlockLevel {
+                                NewsRow(tag: "UNLOCKED", title: "Bug Spray",
+                                        detail: "Drag your finger to spray poison mist.") {
+                                    SprayCanIcon(color: sprayColor, size: 40)
+                                }
+                            }
+                        }
+                    }
                 }
                 .frame(maxWidth: 320)
                 .cartoonPanel()
@@ -239,6 +298,29 @@ private struct CountdownOverlay: View {
             }
             .padding(.horizontal, 24)
             .animation(.spring(response: 0.3, dampingFraction: 0.55), value: count)
+        }
+    }
+}
+
+private struct NewsRow<Icon: View>: View {
+    let tag: String
+    let title: String
+    let detail: String
+    @ViewBuilder let icon: () -> Icon
+
+    var body: some View {
+        HStack(spacing: 10) {
+            icon()
+            VStack(alignment: .leading, spacing: 2) {
+                HStack(spacing: 6) {
+                    NewTag(text: tag)
+                    Text(title).font(.system(size: 15, weight: .black, design: .rounded))
+                }
+                Text(detail)
+                    .font(.system(size: 13, weight: .bold, design: .rounded))
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            .foregroundStyle(Palette.outline)
         }
     }
 }

@@ -20,27 +20,35 @@ code.
 
 ## How to play
 
-* **Tap** to swat. Every bug under the swatter takes damage.
-* **Drag** to spray. A poison mist follows your finger and hurts bugs standing in it. The can
-  drains while you spray and refills when you stop.
-* Squash the level's quota before the timer runs out. Kills close together build a **combo**,
-  which pays bonus coins.
-* After each run you keep your bug bounties. Clearing the level adds a completion bonus plus a speed
-  bonus for the seconds left. More time left also earns more stars.
-* Spend coins in **Upgrades** on the Fly Swatter (bigger and stronger, 5 tiers) and the Bug Spray
-  (bigger tank, more potent, bigger cloud, faster refill, 5 tiers).
+* **Tap** to swat. Every bug under the swatter takes damage. Then the swatter needs a moment to
+  **recharge**. The badge in the bottom-left corner shows when it's ready, and taps before then
+  do nothing.
+* **Drag** to spray (unlocks in Level 2). A poison mist follows your finger and hurts bugs standing
+  in it. The can drains while you spray and refills when you stop.
+* Squash the level's quota before the timer runs out. **If time runs out, the level restarts**
+  after a 5-second countdown. You can restart right away, upgrade first, or quit to the menu.
+* You always keep your bug bounties. Clearing a level adds a completion bonus plus a speed bonus for
+  the seconds left, earns up to 3 stars, and unlocks the next level. Kills close together build a
+  **combo** for extra coins.
+* Spend coins in **Upgrades**:
+  * **Fly Swatter** (5 tiers): bigger, stronger, and faster recharge (0.55s down to 0.20s).
+  * **Bug Spray** (5 tiers, locked until Level 2): bigger tank, more potent, bigger cloud, faster refill.
 
-### Level 1: Kitchen Panic
+### Levels
 
-Squash 30 bugs in 40 seconds.
+| Level | Name          | Goal                    | Spray | New                                   |
+|-------|---------------|-------------------------|-------|---------------------------------------|
+| 1     | Kitchen Panic | 25 bugs in 40 seconds   | no    | roaches                               |
+| 2     | Backyard BBQ  | 35 bugs in 45 seconds   | yes   | house flies, picnic-blanket floor     |
 
-| Bug        | HP | Speed     | Bounty | Appears after |
-|------------|----|-----------|--------|---------------|
-| Roach      | 1  | medium    | 5      | 0s            |
-| Big Momma  | 3  | slow      | 15     | 8s            |
-| Zoomer     | 1  | very fast | 10     | 16s           |
+| Bug        | HP | Movement                                  | Bounty |
+|------------|----|-------------------------------------------|--------|
+| Roach      | 1  | scurries, freezes, darts                  | 5      |
+| Big Momma  | 3  | slow                                      | 15     |
+| Zoomer     | 1  | very fast                                 | 10     |
+| House Fly  | 1  | darts in straight bursts, then hovers     | 8      |
 
-Bugs scurry around for a few seconds and then run for the edge. Any bug that escapes is a lost
+Bugs hang around for a few seconds and then run for the edge. Any bug that escapes is a lost
 bounty.
 
 ## Code layout
@@ -61,15 +69,20 @@ Debugger/
     │   ├── BugRenderer.swift      The cartoon cockroach, drawn with paths
     │   ├── ToolRenderer.swift     Swatter, spray can, mist
     │   └── SceneRenderer.swift    Draws a frame + the kitchen-tile floor
-    ├── UI/                        Menu, game HUD and overlays, results, upgrade shop, theme
+    ├── UI/                        Menu, game HUD and overlays, fail/restart, results, shop, theme
     └── Assets.xcassets            App icon + accent color
 ```
 
 ### Adding a level
 
-Add a `LevelConfig` (duration, quota, spawn pacing, which bug types appear and when) to
-`LevelConfig.all`. Then let `AppModel.currentLevel` pick the next level and turn on the
-"Next Level" button in `ResultsView`.
+Add a `LevelConfig` to `LevelConfig.all`, with its duration, quota, spawn pacing, which bug types
+appear and when, floor style, and whether spray is allowed. The menu, unlocking and the
+"Next Level" button pick it up automatically.
+
+## Web version
+
+`web/index.html` is a single-file browser port of the same game (same levels, art and upgrades),
+for playing on a phone without Xcode. It saves progress in the browser's local storage.
 
 ### Art style
 

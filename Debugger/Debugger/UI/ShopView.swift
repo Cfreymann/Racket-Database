@@ -21,7 +21,7 @@ struct ShopView: View {
                     UpgradeCard(kind: .swatter)
                     UpgradeCard(kind: .spray)
 
-                    Button("DONE") { dismiss() }
+                    Button(app.restartAfterShop ? "DONE: RESTART" : "DONE") { dismiss() }
                         .buttonStyle(CartoonButtonStyle(color: Palette.sprayGreen))
                         .padding(.top, 4)
 
@@ -55,6 +55,7 @@ private struct UpgradeCard: View {
         let tier = app.tier(of: kind)
         let maxTier = app.maxTier(of: kind)
         let cost = app.nextCost(of: kind)
+        let locked = app.isLocked(kind)
 
         VStack(alignment: .leading, spacing: 14) {
             HStack(spacing: 14) {
@@ -75,6 +76,7 @@ private struct UpgradeCard: View {
                 }
                 Spacer(minLength: 0)
             }
+            .opacity(locked ? 0.5 : 1)
 
             VStack(spacing: 6) {
                 ForEach(stats(tier: tier)) { line in
@@ -96,8 +98,14 @@ private struct UpgradeCard: View {
                     .monospacedDigit()
                 }
             }
+            .opacity(locked ? 0.5 : 1)
 
-            if let cost {
+            if locked {
+                Label("Unlocks in Level \(LevelConfig.sprayUnlockLevel)", systemImage: "lock.fill")
+                    .font(.system(size: 16, weight: .black, design: .rounded))
+                    .foregroundStyle(Palette.roachRed)
+                    .frame(maxWidth: .infinity)
+            } else if let cost {
                 Button {
                     withAnimation(.spring(response: 0.3, dampingFraction: 0.6)) { app.buy(kind) }
                     UINotificationFeedbackGenerator().notificationOccurred(.success)
@@ -146,6 +154,8 @@ private struct UpgradeCard: View {
             return [
                 StatLine(label: "Swat size", current: "\(Int(now.radius))", next: next.map { "\(Int($0.radius))" }),
                 StatLine(label: "Swat power", current: format(now.damage), next: next.map { format($0.damage) }),
+                StatLine(label: "Recharge (sec)", current: String(format: "%.2f", now.cooldown),
+                         next: next.map { String(format: "%.2f", $0.cooldown) }),
             ]
         case .spray:
             let now = SprayStats.tiers[tier]

@@ -51,6 +51,16 @@ enum ToolRenderer {
         drawSwatter(c, radius: swat.radius, color: swat.color)
     }
 
+    /// A tap while the swatter is recharging: a small dashed "not yet" ring.
+    static func drawWhiff(_ ctx: GraphicsContext, _ whiff: Whiff) {
+        let k = min(1, whiff.age / Whiff.duration)
+        let r = CGFloat(14 + k * 10)
+        var c = ctx
+        c.opacity = 1 - k
+        let ring = Path(ellipseIn: CGRect(x: whiff.position.x - r, y: whiff.position.y - r, width: r * 2, height: r * 2))
+        c.stroke(ring, with: .color(Palette.outline.opacity(0.6)), style: StrokeStyle(lineWidth: 3, dash: [5, 5]))
+    }
+
     // MARK: Spray can
 
     /// Can centered at the origin with the nozzle pointing up (-y), about 30x80pt.

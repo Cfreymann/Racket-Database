@@ -6,6 +6,7 @@ struct BugColors {
     let pronotum: Color
     let head: Color
     let stripe: Color
+    var eye: Color = .clear
 }
 
 enum BugKind: CaseIterable {
@@ -15,20 +16,25 @@ enum BugKind: CaseIterable {
     case bigRoach
     /// Small, tan and very fast.
     case zoomer
+    /// Darts in straight bursts, then stops to hover. Introduced in level 2.
+    case fly
 
     var displayName: String {
         switch self {
         case .roach: "Roach"
         case .bigRoach: "Big Momma"
         case .zoomer: "Zoomer"
+        case .fly: "House Fly"
         }
     }
 
+    /// Flies use the dart-and-hover movement and their own drawing.
+    var isFlier: Bool { self == .fly }
+
     var maxHP: Double {
         switch self {
-        case .roach: 1
+        case .roach, .zoomer, .fly: 1
         case .bigRoach: 3
-        case .zoomer: 1
         }
     }
 
@@ -37,6 +43,7 @@ enum BugKind: CaseIterable {
         case .roach: 70...105
         case .bigRoach: 45...65
         case .zoomer: 150...190
+        case .fly: 150...200
         }
     }
 
@@ -45,6 +52,7 @@ enum BugKind: CaseIterable {
         case .roach: 1.0
         case .bigRoach: 1.4
         case .zoomer: 0.78
+        case .fly: 0.95
         }
     }
 
@@ -53,33 +61,37 @@ enum BugKind: CaseIterable {
         case .roach: 5
         case .bigRoach: 15
         case .zoomer: 10
+        case .fly: 8
         }
     }
 
-    /// How long the bug scurries around before it tries to escape off-screen.
+    /// How long the bug hangs around before it tries to escape off-screen.
     var lifetimeRange: ClosedRange<Double> {
         switch self {
         case .roach: 6...9
         case .bigRoach: 9...12
         case .zoomer: 4...6
+        case .fly: 7...10
         }
     }
 
-    /// Radians per second.
+    /// Radians per second (crawlers only).
     var turnRate: CGFloat {
         switch self {
         case .roach: 4
         case .bigRoach: 2.5
         case .zoomer: 6
+        case .fly: 0
         }
     }
 
-    /// Chance a roach freezes for a moment when it changes direction (very roach-like).
+    /// Chance a crawler freezes for a moment when it changes direction (very roach-like).
     var pauseChance: Double {
         switch self {
         case .roach: 0.25
         case .bigRoach: 0.15
         case .zoomer: 0.35
+        case .fly: 0
         }
     }
 
@@ -100,6 +112,13 @@ enum BugKind: CaseIterable {
                       pronotum: Color(red: 0.84, green: 0.56, blue: 0.27),
                       head: Color(red: 0.42, green: 0.23, blue: 0.10),
                       stripe: Color(red: 0.42, green: 0.23, blue: 0.10))
+        case .fly:
+            BugColors(legs: Color(red: 0.17, green: 0.17, blue: 0.21),
+                      body: Color(red: 0.35, green: 0.40, blue: 0.47),
+                      pronotum: Color(red: 0.21, green: 0.23, blue: 0.28),
+                      head: Color(red: 0.23, green: 0.25, blue: 0.30),
+                      stripe: Color(red: 0.17, green: 0.19, blue: 0.23),
+                      eye: Color(red: 0.84, green: 0.23, blue: 0.18))
         }
     }
 }
@@ -123,6 +142,9 @@ struct Bug: Identifiable {
     var hasEntered = false
     var isLeaving = false
     var inMist = false
+    // Fly movement state.
+    var hovering = false
+    var modeTimer: Double = 0.6
 
     var radius: CGFloat { 24 * kind.scale }
 }
@@ -146,6 +168,14 @@ struct SwatEffect {
     var age: Double = 0
 
     static let duration: Double = 0.25
+}
+
+/// A tap while the swatter is still recharging.
+struct Whiff {
+    let position: CGPoint
+    var age: Double = 0
+
+    static let duration: Double = 0.3
 }
 
 struct MistPuff {

@@ -10,6 +10,7 @@ struct GameSceneSnapshot {
     var bugs: [Bug]
     var splats: [Splat]
     var swats: [SwatEffect]
+    var whiffs: [Whiff]
     var puffs: [MistPuff]
     var popups: [Popup]
     var sprayNozzleTarget: CGPoint?
@@ -20,9 +21,12 @@ struct GameSceneSnapshot {
 /// Ticked by a CADisplayLink; publishes a change every frame so the HUD stays live.
 @MainActor
 final class GameEngine: ObservableObject {
+    let levelIndex: Int
     let level: LevelConfig
     let swatter: SwatterStats
     let spray: SprayStats
+    /// False in levels before the spray unlocks: dragging does nothing.
+    let sprayEnabled: Bool
 
     private(set) var phase: GamePhase = .countdown
     private(set) var countdown: Double = 3.0
@@ -35,12 +39,15 @@ final class GameEngine: ObservableObject {
     private(set) var bestCombo = 0
     private(set) var sprayTank: Double
     private(set) var isSpraying = false
+    /// Seconds until the swatter can swat again.
+    private(set) var swatCooldown: Double = 0
 
     var size: CGSize = .zero
 
     private var bugs: [Bug] = []
     private var splats: [Splat] = []
     private var swats: [SwatEffect] = []
+    private var whiffs: [Whiff] = []
     private var puffs: [MistPuff] = []
     private var popups: [Popup] = []
 
@@ -60,16 +67,21 @@ final class GameEngine: ObservableObject {
     private let swatHaptic = UIImpactFeedbackGenerator(style: .light)
     private let killHaptic = UIImpactFeedbackGenerator(style: .heavy)
 
-    init(level: LevelConfig, swatter: SwatterStats, spray: SprayStats, onFinish: @escaping (LevelResult) -> Void) {
+    init(levelIndex: Int, level: LevelConfig, swatter: SwatterStats, spray: SprayStats, sprayEnabled: Bool,
+         onFinish: @escaping (LevelResult) -> Void) {
+        self.levelIndex = levelIndex
         self.level = level
         self.swatter = swatter
         self.spray = spray
+        self.sprayEnabled = sprayEnabled
         self.onFinish = onFinish
         self.timeLeft = level.duration
         self.sprayTank = spray.tank
     }
 
     var sprayFraction: Double { spray.tank > 0 ? sprayTank / spray.tank : 0 }
+    /// 1 right after a swat, 0 when the swatter is ready again.
+    var cooldownFraction: Double { swatter.cooldown > 0 ? swatCooldown / swatter.cooldown : 0 }
 
     // MARK: - Lifecycle
 
@@ -103,6 +115,7 @@ final class GameEngine: ObservableObject {
             bugs: bugs,
             splats: splats,
             swats: swats,
+            whiffs: whiffs,
             puffs: puffs,
             popups: popups,
             sprayNozzleTarget: (isSpraying && phase == .playing) ? touchPoint : nil,
@@ -121,7 +134,7 @@ final class GameEngine: ObservableObject {
             swat(at: point)
         } else {
             touchPoint = point
-            if !isSpraying, let start = touchStart, hypot(point.x - start.x, point.y - start.y) > 18 {
+            if sprayEnabled, !isSpraying, let start = touchStart, hypot(point.x - start.x, point.y - start.y) > 18 {
                 isSpraying = true
                 puffTimer = 0
             }
@@ -136,6 +149,11 @@ final class GameEngine: ObservableObject {
 
     private func swat(at point: CGPoint) {
         guard phase == .playing else { return }
+        guard swatCooldown <= 0 else {
+            whiffs.append(Whiff(position: point))
+            return
+        }
+        swatCooldown = swatter.cooldown
         swats.append(SwatEffect(position: point, radius: swatter.radius, color: swatter.color,
                                 tilt: .random(in: -0.7 ... -0.3)))
         swatHaptic.impactOccurred()
@@ -172,6 +190,7 @@ final class GameEngine: ObservableObject {
         case .playing:
             elapsed += dt
             timeLeft = max(0, timeLeft - dt)
+            swatCooldown = max(0, swatCooldown - dt)
             updateSpawning(dt)
             updateSpray(dt)
             updateBugs(dt)
@@ -266,9 +285,12 @@ final class GameEngine: ObservableObject {
             if !bug.isLeaving && bug.age > bug.lifetime {
                 bug.isLeaving = true
                 bug.targetHeading = headingToNearestEdge(from: bug.position)
+                bug.modeTimer = 0
             }
 
-            if bug.pauseTimer > 0 {
+            if bug.kind.isFlier {
+                moveFly(&bug, dt: dt, center: center)
+            } else if bug.pauseTimer > 0 {
                 bug.pauseTimer -= dt
             } else {
                 bug.wanderTimer -= dt
@@ -320,7 +342,49 @@ final class GameEngine: ObservableObject {
         bugs = survivors
     }
 
+    /// Flies dart in a straight line, stop to hover (jittering in place), then dart somewhere new.
+    private func moveFly(_ bug: inout Bug, dt: Double, center: CGPoint) {
+        let w = size.width
+        let h = size.height
+        let edge: CGFloat = 26
+        let nearEdge = bug.position.x < edge || bug.position.x > w - edge
+            || bug.position.y < edge || bug.position.y > h - edge
+        let inward = atan2(center.y - bug.position.y, center.x - bug.position.x)
+
+        bug.modeTimer -= dt
+        if bug.modeTimer <= 0 {
+            if bug.hovering || bug.isLeaving || bug.panic > 0 {
+                bug.hovering = false
+                bug.modeTimer = Double.random(in: 0.35...0.7)
+                if bug.isLeaving {
+                    bug.heading = headingToNearestEdge(from: bug.position) + CGFloat.random(in: -0.3...0.3)
+                } else if !bug.hasEntered || nearEdge {
+                    bug.heading = inward + CGFloat.random(in: -0.6...0.6)
+                } else {
+                    bug.heading = CGFloat.random(in: 0...(2 * .pi))
+                }
+            } else {
+                bug.hovering = true
+                bug.modeTimer = Double.random(in: 0.4...1.0)
+            }
+        }
+        if !bug.isLeaving && (!bug.hasEntered || nearEdge) && abs(angleDiff(bug.heading, inward)) > 1.2 {
+            bug.heading = inward + CGFloat.random(in: -0.4...0.4)
+        }
+
+        let fdt = CGFloat(dt)
+        var speed: CGFloat = bug.hovering ? 16 : bug.baseSpeed
+        if bug.hovering { bug.heading += CGFloat.random(in: -7...7) * fdt }
+        if bug.isLeaving { speed *= 1.2 }
+        if bug.panic > 0 && !bug.hovering { speed *= 1.3 }
+        if bug.inMist { speed *= 0.6 }
+        bug.position.x += cos(bug.heading) * speed * fdt
+        bug.position.y += sin(bug.heading) * speed * fdt
+        bug.legPhase += 45 * fdt
+    }
+
     private func updateSpray(_ dt: Double) {
+        guard sprayEnabled else { return }
         if isSpraying, let point = touchPoint, sprayTank > 0 {
             sprayTank = max(0, sprayTank - dt)
             sprayIdle = 0
@@ -371,6 +435,11 @@ final class GameEngine: ObservableObject {
             var s = swat
             s.age += dt
             return s.age < SwatEffect.duration ? s : nil
+        }
+        whiffs = whiffs.compactMap { whiff in
+            var w = whiff
+            w.age += dt
+            return w.age < Whiff.duration ? w : nil
         }
         let fdt = CGFloat(dt)
         puffs = puffs.compactMap { puff in
@@ -435,6 +504,8 @@ final class GameEngine: ObservableObject {
             bugs[i].isLeaving = true
             bugs[i].pauseTimer = 0
             bugs[i].panic = 2
+            bugs[i].hovering = false
+            bugs[i].modeTimer = 0
             bugs[i].targetHeading = headingToNearestEdge(from: bugs[i].position)
         }
         if won {
@@ -447,6 +518,7 @@ final class GameEngine: ObservableObject {
     private func makeResult() -> LevelResult {
         let won = phase == .won
         return LevelResult(
+            levelIndex: levelIndex,
             levelNumber: level.number,
             levelTitle: level.title,
             won: won,

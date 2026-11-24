@@ -28,7 +28,16 @@ enum BugRenderer {
         c.rotate(by: .radians(Double(heading) + .pi / 2))
         let s = kind.scale * extraScale
         c.scaleBy(x: s, y: s)
-        drawRoach(c, colors: kind.colors, legPhase: legPhase, splayed: false, flash: flash)
+        drawCritter(c, kind: kind, legPhase: legPhase, splayed: false, flash: flash)
+    }
+
+    /// Draws any bug type in local coordinates (facing up).
+    static func drawCritter(_ c: GraphicsContext, kind: BugKind, legPhase: CGFloat, splayed: Bool, flash: Double) {
+        if kind.isFlier {
+            drawFly(c, colors: kind.colors, legPhase: legPhase, splayed: splayed, flash: flash)
+        } else {
+            drawRoach(c, colors: kind.colors, legPhase: legPhase, splayed: splayed, flash: flash)
+        }
     }
 
     static func drawSplat(_ ctx: GraphicsContext, _ splat: Splat) {
@@ -49,18 +58,20 @@ enum BugRenderer {
         bug.rotate(by: .radians(Double(splat.heading) + .pi / 2))
         let s = splat.kind.scale
         bug.scaleBy(x: s * 1.2, y: s * 0.8)
-        drawRoach(bug, colors: splat.kind.colors, legPhase: 0, splayed: true, flash: 0)
+        drawCritter(bug, kind: splat.kind, legPhase: 0, splayed: true, flash: 0)
 
         // Cartoon "X X" eyes.
         var eyes = c
         eyes.rotate(by: .radians(Double(splat.heading) + .pi / 2))
         eyes.scaleBy(x: s * 1.2, y: s * 0.8)
         var cross = Path()
-        for x in [-4.0, 4.0] as [CGFloat] {
-            cross.move(to: CGPoint(x: x - 2, y: -30)); cross.addLine(to: CGPoint(x: x + 2, y: -26))
-            cross.move(to: CGPoint(x: x + 2, y: -30)); cross.addLine(to: CGPoint(x: x - 2, y: -26))
+        let eyeY: CGFloat = splat.kind.isFlier ? -22 : -28
+        let eyeX: CGFloat = splat.kind.isFlier ? 6 : 4
+        for x in [-eyeX, eyeX] {
+            cross.move(to: CGPoint(x: x - 2.2, y: eyeY - 2.2)); cross.addLine(to: CGPoint(x: x + 2.2, y: eyeY + 2.2))
+            cross.move(to: CGPoint(x: x + 2.2, y: eyeY - 2.2)); cross.addLine(to: CGPoint(x: x - 2.2, y: eyeY + 2.2))
         }
-        eyes.stroke(cross, with: .color(.white), style: StrokeStyle(lineWidth: 1.4, lineCap: .round))
+        eyes.stroke(cross, with: .color(.white), style: StrokeStyle(lineWidth: 1.6, lineCap: .round))
     }
 
     static func drawRoach(_ c: GraphicsContext, colors: BugColors, legPhase: CGFloat, splayed: Bool, flash: Double) {
@@ -127,6 +138,88 @@ enum BugRenderer {
             var hurt = Path()
             hurt.addPath(abdomen)
             hurt.addPath(pronotum)
+            c.fill(hurt, with: .color(.white.opacity(min(0.75, flash * 0.75))))
+        }
+    }
+
+    // MARK: - House fly
+
+    private struct FlyLeg {
+        let attach: CGPoint
+        let knee: CGPoint
+        let foot: CGPoint
+    }
+
+    private static let flyLegs: [FlyLeg] = [
+        FlyLeg(attach: CGPoint(x: 5, y: -8), knee: CGPoint(x: 14, y: -12), foot: CGPoint(x: 16, y: -22)),
+        FlyLeg(attach: CGPoint(x: 6, y: -3), knee: CGPoint(x: 17, y: -2), foot: CGPoint(x: 22, y: 4)),
+        FlyLeg(attach: CGPoint(x: 5, y: 2), knee: CGPoint(x: 14, y: 8), foot: CGPoint(x: 17, y: 18)),
+    ]
+
+    /// House fly facing up: big red eyes, striped grey abdomen, see-through buzzing wings.
+    /// `legPhase` advances quickly for flies and drives the wing buzz.
+    static func drawFly(_ c: GraphicsContext, colors: BugColors, legPhase: CGFloat, splayed: Bool, flash: Double) {
+        let outline = Palette.outline
+
+        var legs = Path()
+        for leg in flyLegs {
+            for side in [1, -1] as [CGFloat] {
+                let spread: CGFloat = splayed ? 1.25 : 1
+                let jiggle: CGFloat = splayed ? 0 : sin(legPhase * 0.3 + leg.attach.y) * 1.2
+                legs.move(to: CGPoint(x: leg.attach.x * side, y: leg.attach.y))
+                legs.addQuadCurve(to: CGPoint(x: leg.foot.x * side * spread, y: leg.foot.y + jiggle),
+                                  control: CGPoint(x: leg.knee.x * side * spread, y: leg.knee.y + jiggle))
+            }
+        }
+        c.stroke(legs, with: .color(outline), style: StrokeStyle(lineWidth: 4, lineCap: .round, lineJoin: .round))
+        c.stroke(legs, with: .color(colors.legs), style: StrokeStyle(lineWidth: 1.8, lineCap: .round, lineJoin: .round))
+
+        let abdomen = Path(ellipseIn: CGRect(x: -10, y: -4, width: 20, height: 26))
+        c.fill(abdomen, with: .color(colors.body))
+        var striped = c
+        striped.clip(to: abdomen)
+        striped.fill(Path(CGRect(x: -12, y: 5, width: 24, height: 3.5)), with: .color(colors.stripe))
+        striped.fill(Path(CGRect(x: -12, y: 12, width: 24, height: 3.5)), with: .color(colors.stripe))
+        c.stroke(abdomen, with: .color(outline), lineWidth: 2.4)
+
+        let thorax = Path(ellipseIn: CGRect(x: -9.5, y: -15, width: 19, height: 16))
+        c.fill(thorax, with: .color(colors.pronotum))
+        c.stroke(thorax, with: .color(outline), lineWidth: 2.4)
+        c.fill(Path(ellipseIn: CGRect(x: -5, y: -12, width: 4, height: 9)), with: .color(.white.opacity(0.15)))
+
+        let head = Path(ellipseIn: CGRect(x: -7, y: -25, width: 14, height: 11))
+        c.fill(head, with: .color(colors.head))
+        c.stroke(head, with: .color(outline), lineWidth: 2.4)
+        for side in [1, -1] as [CGFloat] {
+            let eye = Path(ellipseIn: CGRect(x: side > 0 ? 0.5 : -11.5, y: -28, width: 11, height: 12))
+            c.fill(eye, with: .color(colors.eye))
+            c.stroke(eye, with: .color(outline), lineWidth: 2.2)
+            if !splayed {
+                c.fill(Path(ellipseIn: CGRect(x: side > 0 ? 3 : -9, y: -26, width: 3.5, height: 3)),
+                       with: .color(.white.opacity(0.7)))
+            }
+        }
+
+        // Wings buzz by fanning out and stretching.
+        let buzz: CGFloat = splayed ? 0.5 : abs(sin(legPhase * 1.7))
+        for side in [1, -1] as [CGFloat] {
+            var wing = c
+            wing.translateBy(x: 3.5 * side, y: -10)
+            wing.rotate(by: .radians(Double(side * (0.45 + buzz * 0.35))))
+            wing.scaleBy(x: 1, y: 0.85 + buzz * 0.2)
+            let shape = Path(ellipseIn: CGRect(x: -6, y: 0, width: 12, height: 28))
+            wing.fill(shape, with: .color(Color(red: 0.88, green: 0.93, blue: 1.0).opacity(0.62)))
+            wing.stroke(shape, with: .color(outline), lineWidth: 1.8)
+            var veins = Path()
+            veins.move(to: CGPoint(x: 0, y: 3)); veins.addLine(to: CGPoint(x: 0, y: 24))
+            veins.move(to: CGPoint(x: 0, y: 12)); veins.addLine(to: CGPoint(x: -3.5, y: 21))
+            wing.stroke(veins, with: .color(outline.opacity(0.35)), lineWidth: 1)
+        }
+
+        if flash > 0 {
+            var hurt = Path()
+            hurt.addPath(abdomen)
+            hurt.addPath(thorax)
             c.fill(hurt, with: .color(.white.opacity(min(0.75, flash * 0.75))))
         }
     }

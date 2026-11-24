@@ -23,6 +23,22 @@ enum Palette {
     static let locked = Color(red: 0.62, green: 0.58, blue: 0.54)
 }
 
+/// Small yellow "NEW" style tag.
+struct NewTag: View {
+    let text: String
+
+    var body: some View {
+        Text(text)
+            .font(.system(size: 11, weight: .black, design: .rounded))
+            .tracking(0.6)
+            .foregroundStyle(Palette.outline)
+            .padding(.horizontal, 6)
+            .padding(.vertical, 1)
+            .background(RoundedRectangle(cornerRadius: 7).fill(Palette.gold))
+            .overlay(RoundedRectangle(cornerRadius: 7).stroke(Palette.outline, lineWidth: 2))
+    }
+}
+
 /// Chunky rounded text with a dark cartoon outline.
 struct CartoonText: View {
     let text: String
@@ -139,9 +155,10 @@ struct BugIcon: View {
 
     var body: some View {
         Canvas { ctx, canvasSize in
-            let scale = size / (100 * kind.scale)
-            BugRenderer.draw(ctx, kind: kind, at: CGPoint(x: canvasSize.width / 2, y: canvasSize.height / 2 + size * 0.1),
-                             heading: heading, legPhase: 0.8, extraScale: scale)
+            // Flies are much shorter than roaches (no long antennae), so they get drawn bigger.
+            let scale = size / ((kind.isFlier ? 62 : 100) * kind.scale)
+            BugRenderer.draw(ctx, kind: kind, at: CGPoint(x: canvasSize.width / 2, y: canvasSize.height / 2 + size * 0.08),
+                             heading: heading, legPhase: kind.isFlier ? 0.5 : 0.8, extraScale: scale)
         }
         .frame(width: size, height: size)
     }

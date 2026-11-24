@@ -6,37 +6,46 @@ struct ResultsView: View {
     @State private var appeared = false
 
     var body: some View {
+        let level = app.level(at: result.levelIndex)
+        let hasNext = result.levelIndex + 1 < LevelConfig.all.count
         ZStack {
-            KitchenFloor().ignoresSafeArea()
+            FloorView(style: level.floor).ignoresSafeArea()
             Color.black.opacity(0.25).ignoresSafeArea()
 
             ScrollView {
                 VStack(spacing: 18) {
-                    CartoonText(result.won ? "LEVEL CLEAR!" : "TIME'S UP!", size: 44,
-                                fill: result.won ? Palette.gold : Palette.roachRed, strokeWidth: 4)
+                    CartoonText("LEVEL CLEAR!", size: 44, fill: Palette.gold, strokeWidth: 4)
                         .rotationEffect(.degrees(-3))
                         .scaleEffect(appeared ? 1 : 0.5)
                         .padding(.top, 12)
 
                     StarsRow(stars: result.stars, size: 46, animate: appeared)
 
+                    if let unlocked = result.unlockedLevelNumber {
+                        let next = LevelConfig.all[unlocked - 1]
+                        let sprayNote = unlocked == LevelConfig.sprayUnlockLevel ? " Bug Spray is now available in the shop." : ""
+                        let message: String = "Level \(unlocked) unlocked: \(next.title)!" + sprayNote
+                        Text(message)
+                            .font(.system(size: 16, weight: .black, design: .rounded))
+                            .foregroundStyle(Palette.outline)
+                            .multilineTextAlignment(.center)
+                            .frame(maxWidth: 340)
+                            .cartoonPanel(fill: Palette.gold)
+                    }
+
                     VStack(spacing: 10) {
                         StatRow(label: "Bugs squashed", value: "\(result.kills) / \(result.quota)")
                         StatRow(label: "Got away", value: "\(result.escaped)")
                         StatRow(label: "Best combo", value: result.bestCombo >= 2 ? "x\(result.bestCombo)" : "-")
-                        if result.won {
-                            StatRow(label: "Time left", value: "\(Int(result.timeLeft))s")
-                        }
+                        StatRow(label: "Time left", value: "\(Int(result.timeLeft))s")
                     }
                     .frame(maxWidth: 340)
                     .cartoonPanel()
 
                     VStack(spacing: 10) {
                         CoinRow(label: "Bug bounties", amount: result.bounty)
-                        if result.won {
-                            CoinRow(label: "Level complete", amount: result.completionBonus)
-                            CoinRow(label: "Speed bonus", amount: result.timeBonus)
-                        }
+                        CoinRow(label: "Level complete", amount: result.completionBonus)
+                        CoinRow(label: "Speed bonus", amount: result.timeBonus)
                         Rectangle().fill(Palette.outline.opacity(0.2)).frame(height: 2)
                         HStack {
                             Text("TOTAL")
@@ -48,12 +57,6 @@ struct ResultsView: View {
                                 .monospacedDigit()
                         }
                         .foregroundStyle(Palette.outline)
-                        if !result.won {
-                            Text("Spend your bounty on upgrades and try again!")
-                                .font(.system(size: 14, weight: .bold, design: .rounded))
-                                .foregroundStyle(Palette.roachRed)
-                                .multilineTextAlignment(.center)
-                        }
                     }
                     .frame(maxWidth: 340)
                     .cartoonPanel()
@@ -70,10 +73,10 @@ struct ResultsView: View {
                         }
                         .buttonStyle(CartoonButtonStyle(color: Palette.swatterBlue))
 
-                        Button(result.won ? "PLAY AGAIN" : "TRY AGAIN") { app.playCurrentLevel() }
-                            .buttonStyle(CartoonButtonStyle(color: Palette.sprayGreen))
-
-                        if result.won {
+                        if hasNext {
+                            Button("NEXT LEVEL") { app.play(levelIndex: result.levelIndex + 1) }
+                                .buttonStyle(CartoonButtonStyle(color: Palette.sprayGreen))
+                        } else {
                             Button {} label: {
                                 VStack(spacing: 0) {
                                     Text("NEXT LEVEL")
@@ -84,6 +87,9 @@ struct ResultsView: View {
                             .buttonStyle(CartoonButtonStyle(color: Palette.locked))
                             .disabled(true)
                         }
+
+                        Button("PLAY AGAIN") { app.play(levelIndex: result.levelIndex) }
+                            .buttonStyle(CartoonButtonStyle(color: Palette.gold))
 
                         Button("MENU") { app.goToMenu() }
                             .buttonStyle(CartoonButtonStyle(color: Palette.roachRed, minWidth: 160, fontSize: 20))
