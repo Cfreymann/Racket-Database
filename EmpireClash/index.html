@@ -1,0 +1,881 @@
+<title>Empire Clash</title>
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Empire Clash">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Alegreya+SC:wght@700;900&family=Alegreya+Sans:wght@500;700;800&display=swap">
+<style>
+/* Layout: a phone-shaped column (max 480px) of stacked screens over a war-table backdrop.
+   Single theme by design: parchment cards, ink outlines, banner colors. */
+:root {
+  --ink: #2b2118;
+  --parchment: #f3e6c4;
+  --parchment-2: #e7d5a8;
+  --table: #4a3424;
+  --blue: #2f5fb3;
+  --gold: #d9a521;
+  --red: #b3262b;
+  --green: #4f8a3a;
+  --muted: #7c6a50;
+  --display: "Alegreya SC", "Palatino Linotype", Palatino, Georgia, serif;
+  --body: "Alegreya Sans", "Gill Sans", "Trebuchet MS", system-ui, sans-serif;
+  color-scheme: light;
+}
+html, body { height: 100%; }
+[hidden] { display: none !important; }
+*, *::before, *::after { box-sizing: border-box; }
+body {
+  margin: 0; background: var(--table); color: var(--ink); font-family: var(--body);
+  overflow: hidden; -webkit-user-select: none; user-select: none; -webkit-tap-highlight-color: transparent;
+  background-image: repeating-linear-gradient(90deg, rgba(0,0,0,0.06) 0 2px, transparent 2px 46px);
+}
+button { font: inherit; color: inherit; cursor: pointer; touch-action: manipulation; }
+button:focus-visible { outline: 3px solid var(--gold); outline-offset: 2px; }
+
+.app { position: relative; height: 100%; max-width: 480px; margin: 0 auto; overflow: hidden; background: var(--parchment); box-shadow: 0 0 40px rgba(0,0,0,0.5); }
+.screen {
+  position: absolute; inset: 0; display: flex; flex-direction: column; gap: 14px;
+  padding: 16px max(16px, env(safe-area-inset-right, 0px)) 16px max(16px, env(safe-area-inset-left, 0px));
+  overflow-y: auto; -webkit-overflow-scrolling: touch;
+}
+h1, h2, h3 { font-family: var(--display); margin: 0; line-height: 1.05; text-wrap: balance; }
+.eyebrow { font: 800 12px/1.2 var(--body); letter-spacing: 0.12em; text-transform: uppercase; color: var(--muted); }
+
+.btn {
+  border: 3px solid var(--ink); border-radius: 12px; background: var(--c, var(--red)); color: #fff8e6;
+  font: 900 20px/1 var(--display); letter-spacing: 0.04em; padding: 14px 18px;
+  box-shadow: 0 4px 0 var(--ink); transition: transform 0.06s, box-shadow 0.06s;
+  display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+}
+.btn:active { transform: translateY(3px); box-shadow: 0 1px 0 var(--ink); }
+.btn[disabled] { --c: #a49576; cursor: default; opacity: 0.8; }
+.btn[disabled]:active { transform: none; box-shadow: 0 4px 0 var(--ink); }
+.btn.small { font-size: 15px; padding: 8px 12px; border-width: 2px; box-shadow: 0 3px 0 var(--ink); border-radius: 10px; }
+.btn.ghost { --c: var(--parchment-2); color: var(--ink); }
+
+.panel { background: #fbf3dc; border: 3px solid var(--ink); border-radius: 14px; padding: 12px 14px; box-shadow: 0 4px 0 rgba(43,33,24,0.85); }
+.gold { display: inline-flex; align-items: center; gap: 6px; font: 800 18px/1 var(--body); font-variant-numeric: tabular-nums; }
+.coin { width: 18px; height: 18px; border-radius: 50%; background: radial-gradient(circle at 35% 35%, #ffe38a, var(--gold) 60%, #9a6f10); border: 2px solid var(--ink); flex: none; }
+
+/* Title */
+#title { justify-content: center; align-items: center; text-align: center; background: radial-gradient(ellipse at 50% 30%, #fbf1d6, var(--parchment) 70%); }
+#title h1 { font-size: clamp(54px, 16vw, 78px); color: var(--red); text-shadow: 3px 3px 0 var(--ink); }
+#title .tag { font: 700 18px/1.35 var(--body); max-width: 30ch; }
+#titleArt { width: 100%; max-width: 420px; height: 170px; }
+.title-buttons { display: flex; flex-direction: column; gap: 14px; width: min(300px, 100%); }
+.record { font: 700 15px/1.3 var(--body); color: var(--muted); }
+
+/* Card draft */
+#draft { align-items: center; }
+#draft header { text-align: center; display: flex; flex-direction: column; gap: 6px; padding-top: 10px; }
+#draft h2 { font-size: 34px; }
+.cards { display: flex; flex-direction: column; gap: 14px; width: 100%; }
+.card {
+  display: grid; grid-template-columns: 74px 1fr; gap: 12px; align-items: center; text-align: left;
+  background: #fbf3dc; border: 3px solid var(--ink); border-radius: 14px; padding: 10px 12px;
+  box-shadow: 0 4px 0 var(--ink); position: relative; transition: transform 0.08s;
+  animation: deal 0.35s cubic-bezier(.2,1.3,.4,1) both;
+}
+.card:nth-child(2) { animation-delay: 0.08s; } .card:nth-child(3) { animation-delay: 0.16s; }
+@keyframes deal { from { transform: translateY(24px) rotate(-2deg); opacity: 0; } }
+.card:active { transform: translateY(3px); }
+.card canvas { width: 74px; height: 74px; border-radius: 10px; background: var(--parchment-2); border: 2px solid var(--ink); }
+.card .r { position: absolute; top: -10px; right: 12px; font: 900 11px/1 var(--body); letter-spacing: 0.1em; text-transform: uppercase; padding: 4px 8px; border: 2px solid var(--ink); border-radius: 6px; background: var(--rc); color: #fff; }
+.card h3 { font-size: 21px; }
+.card p { margin: 3px 0 0; font: 600 15px/1.3 var(--body); }
+.card .kind { font: 800 11px/1 var(--body); letter-spacing: 0.1em; text-transform: uppercase; color: var(--muted); }
+.r-common { --rc: #6c7a5c; } .r-rare { --rc: var(--blue); } .r-epic { --rc: #8a3fa0; }
+.card.r-rare { border-color: #1f3f7a; } .card.r-epic { border-color: #5e2470; background: #f8ecf8; }
+
+/* Camp */
+.camp-top { display: flex; justify-content: space-between; align-items: center; }
+.camp-top h2 { font-size: 28px; }
+.enemy { display: flex; flex-direction: column; gap: 8px; border-color: var(--ec, var(--red)); background: linear-gradient(180deg, color-mix(in srgb, var(--ec) 18%, #fbf3dc), #fbf3dc 60%); }
+.enemy .head { display: flex; gap: 10px; align-items: center; }
+.banner-flag { width: 34px; height: 46px; flex: none; background: var(--ec); border: 2px solid var(--ink); clip-path: polygon(0 0, 100% 0, 100% 100%, 50% 80%, 0 100%); }
+.enemy h3 { font-size: 22px; }
+.enemy .years { font: 700 13px/1.2 var(--body); color: var(--muted); }
+.enemy .blurb { margin: 0; font: 600 14px/1.35 var(--body); }
+.troops { display: flex; flex-wrap: wrap; gap: 8px; }
+.troop { display: flex; align-items: center; gap: 6px; background: rgba(255,255,255,0.55); border: 2px solid var(--ink); border-radius: 10px; padding: 3px 9px 3px 3px; font: 800 14px/1.1 var(--body); }
+.troop canvas { width: 36px; height: 36px; }
+.troop small { display: block; font-weight: 600; font-size: 11px; color: var(--muted); }
+.section-title { display: flex; justify-content: space-between; align-items: baseline; }
+.section-title h3 { font-size: 20px; }
+.roster { display: flex; flex-direction: column; gap: 8px; }
+.unit-row { display: grid; grid-template-columns: 44px 1fr auto; gap: 10px; align-items: center; background: #fbf3dc; border: 2px solid var(--ink); border-radius: 12px; padding: 6px 8px; }
+.unit-row canvas { width: 44px; height: 44px; }
+.unit-row .name { font: 800 16px/1.1 var(--body); }
+.unit-row .stats { font: 600 12.5px/1.3 var(--body); color: var(--muted); font-variant-numeric: tabular-nums; }
+.unit-row .count { font: 900 20px/1 var(--display); margin-right: 6px; }
+.unit-row .right { display: flex; align-items: center; gap: 4px; }
+.chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.chip { background: var(--parchment-2); border: 2px solid var(--ink); border-radius: 999px; padding: 3px 10px; font: 700 13px/1.2 var(--body); }
+.march { position: sticky; bottom: 0; margin-top: auto; padding-top: 8px; background: linear-gradient(transparent, var(--parchment) 30%); }
+.march .btn { width: 100%; font-size: 24px; }
+
+/* Battle */
+#battle { padding: 0; gap: 0; overflow: hidden; background: #6f9a4a; }
+.hud { display: flex; flex-direction: column; gap: 6px; padding: 10px 14px 8px; background: var(--parchment); border-bottom: 3px solid var(--ink); }
+.hud .line { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+.hud .vs { font: 900 16px/1.1 var(--display); }
+.tug { position: relative; height: 16px; border: 2px solid var(--ink); border-radius: 999px; overflow: hidden; background: var(--ec, var(--red)); }
+.tug i { position: absolute; inset: 0 auto 0 0; width: 50%; background: var(--blue); transition: width 0.25s; border-right: 2px solid var(--ink); }
+.hud .counts { display: flex; justify-content: space-between; font: 800 13px/1 var(--body); font-variant-numeric: tabular-nums; }
+#field { flex: 1; width: 100%; display: block; touch-action: none; }
+.speed { min-width: 52px; }
+
+/* Result overlay */
+#result { background: rgba(30, 20, 12, 0.6); justify-content: center; align-items: center; z-index: 5; }
+#result .panel { width: 100%; text-align: center; display: flex; flex-direction: column; gap: 10px; align-items: center; animation: deal 0.35s cubic-bezier(.2,1.3,.4,1) both; }
+#result h2 { font-size: 42px; }
+#result p { margin: 0; font: 700 16px/1.4 var(--body); }
+
+@media (prefers-reduced-motion: reduce) { .card, #result .panel { animation: none; } }
+</style>
+
+<div class="app">
+  <!-- TITLE -->
+  <section class="screen" id="title">
+    <canvas id="titleArt"></canvas>
+    <h1>Empire Clash</h1>
+    <p class="tag">Build an army one card at a time and face history's great empires, one after another.</p>
+    <div class="title-buttons">
+      <button class="btn" style="--c: var(--blue)" id="continueBtn" hidden>CONTINUE</button>
+      <button class="btn" id="newBtn">NEW CAMPAIGN</button>
+      <button class="btn ghost" id="confirmNew" hidden>Tap again to abandon your current campaign</button>
+    </div>
+    <div class="record" id="record"></div>
+  </section>
+
+  <!-- DRAFT -->
+  <section class="screen" id="draft" hidden>
+    <header>
+      <div class="eyebrow" id="draftEyebrow">Victory spoils</div>
+      <h2 id="draftTitle">Choose a card</h2>
+    </header>
+    <div class="cards" id="cards"></div>
+  </section>
+
+  <!-- CAMP -->
+  <section class="screen" id="camp" hidden>
+    <div class="camp-top">
+      <div>
+        <div class="eyebrow">War camp</div>
+        <h2 id="campLevel">Battle 1</h2>
+      </div>
+      <span class="gold panel" style="padding:8px 12px"><span class="coin"></span><span id="campGold">0</span></span>
+    </div>
+
+    <div class="panel enemy" id="enemyPanel"></div>
+
+    <div class="section-title"><h3>Your army</h3><span class="eyebrow" id="armyTotal"></span></div>
+    <div class="roster" id="roster"></div>
+
+    <div class="section-title" id="boostTitle"><h3>Upgrades</h3></div>
+    <div class="chips" id="boosts"></div>
+
+    <div class="march"><button class="btn" id="marchBtn">MARCH TO BATTLE</button></div>
+  </section>
+
+  <!-- BATTLE -->
+  <section class="screen" id="battle" hidden>
+    <div class="hud">
+      <div class="line">
+        <span class="vs" id="hudTitle">Your Banner vs Rome</span>
+        <button class="btn small ghost speed" id="speedBtn">1×</button>
+      </div>
+      <div class="tug" id="tug"><i id="tugFill"></i></div>
+      <div class="counts"><span id="hudMine">You: 0</span><span id="hudTheirs">Them: 0</span></div>
+    </div>
+    <canvas id="field"></canvas>
+  </section>
+
+  <!-- RESULT -->
+  <section class="screen" id="result" hidden>
+    <div class="panel" id="resultPanel"></div>
+  </section>
+</div>
+
+<script>
+"use strict";
+// =====================================================================  DATA
+// Every troop in the game. role drives counters; mount and weapon drive the drawing.
+const UNITS = {
+  // Your banner
+  sword:    { name: "Swordsman", role: "inf", hp: 110, atk: 14, cd: 1.0, speed: 42, weapon: "sword", shield: "round", cost: 15 },
+  spear:    { name: "Spearman", role: "spear", hp: 120, atk: 11, cd: 1.1, speed: 38, weapon: "spear", shield: "tall", cost: 15 },
+  archer:   { name: "Archer", role: "ranged", hp: 60, atk: 10, cd: 1.2, range: 250, speed: 40, weapon: "bow", proj: "arrow", cost: 18 },
+  knight:   { name: "Knight", role: "cav", hp: 150, atk: 18, cd: 1.1, speed: 80, weapon: "lance", mount: "horse", cost: 30 },
+  catapult: { name: "Catapult", role: "siege", hp: 90, atk: 26, cd: 3.0, range: 360, splash: 42, speed: 20, mount: "siege", siege: "catapult", proj: "rock", cost: 45 },
+  // Roman Empire
+  legionary:   { name: "Legionary", role: "inf", hp: 125, atk: 13, cd: 1.0, speed: 40, weapon: "sword", shield: "scutum" },
+  equites:     { name: "Equites", role: "cav", hp: 115, atk: 16, cd: 1.0, speed: 85, weapon: "spear", mount: "horse" },
+  ballista:    { name: "Ballista", role: "siege", hp: 80, atk: 34, cd: 2.6, range: 340, speed: 22, mount: "siege", siege: "ballista", proj: "bolt" },
+  // Mongol Empire
+  horsearcher: { name: "Horse Archer", role: "cav", hp: 85, atk: 9, cd: 1.1, range: 210, speed: 80, weapon: "bow", mount: "horse", proj: "arrow" },
+  lancer:      { name: "Lancer", role: "cav", hp: 135, atk: 18, cd: 1.1, speed: 88, weapon: "lance", mount: "horse" },
+  mangonel:    { name: "Mangonel", role: "siege", hp: 90, atk: 22, cd: 3.2, range: 370, splash: 50, speed: 18, mount: "siege", siege: "catapult", proj: "rock" },
+  // New Kingdom Egypt
+  khopesh:     { name: "Khopesh Warrior", role: "inf", hp: 100, atk: 15, cd: 0.85, speed: 46, weapon: "khopesh", shield: "tall" },
+  chariot:     { name: "Chariot", role: "cav", hp: 140, atk: 14, cd: 1.0, speed: 92, weapon: "spear", mount: "chariot" },
+  nubian:      { name: "Nubian Archer", role: "ranged", hp: 60, atk: 11, cd: 1.15, range: 270, speed: 40, weapon: "bow", proj: "arrow" },
+  // Sasanian Persian Empire
+  immortal:    { name: "Immortal", role: "spear", hp: 130, atk: 12, cd: 1.1, speed: 38, weapon: "spear", shield: "wicker" },
+  cataphract:  { name: "Cataphract", role: "cav", hp: 190, atk: 16, cd: 1.2, speed: 62, weapon: "lance", mount: "horse", barded: true },
+  elephant:    { name: "War Elephant", role: "beast", hp: 420, atk: 30, cd: 1.6, speed: 28, splash: 30, weapon: "spear", mount: "elephant" },
+  // Aztec Empire
+  jaguar:      { name: "Jaguar Warrior", role: "inf", hp: 100, atk: 15, cd: 0.95, speed: 52, weapon: "club", shield: "round", look: "jaguar" },
+  eagle:       { name: "Eagle Warrior", role: "inf", hp: 80, atk: 12, cd: 0.8, speed: 72, weapon: "club", shield: "round", look: "eagle", bonus: { ranged: 1.5, siege: 1.5 } },
+  atlatl:      { name: "Atlatl Thrower", role: "ranged", hp: 60, atk: 14, cd: 1.4, range: 210, speed: 42, weapon: "javelin", proj: "javelin" },
+};
+// Counters: spears stop horses and elephants; riders run down archers and siege crews.
+const COUNTERS = { spear: { cav: 2, beast: 2 }, cav: { ranged: 1.5, siege: 1.5 } };
+const ROLE_LABEL = { inf: "Infantry", spear: "Spear", ranged: "Ranged", cav: "Cavalry", siege: "Siege", beast: "Beast" };
+
+const PLAYER = { name: "Your Banner", primary: "#2f5fb3", secondary: "#e2b43a", skin: "#e9b98f", helm: "player" };
+const EMPIRES = {
+  rome:   { name: "Roman Empire", short: "Rome", years: "27 BC – AD 476", primary: "#b3262b", secondary: "#e8c046", skin: "#e2ad84", helm: "roman",
+            blurb: "Disciplined legions behind big rectangular shields, backed by horsemen and bolt-throwing ballistae.",
+            troops: { legionary: 5, equites: 2, ballista: 1 } },
+  mongol: { name: "Mongol Empire", short: "Mongols", years: "1206 – 1368", primary: "#8a5a2b", secondary: "#3c8c99", skin: "#d9a676", helm: "mongol",
+            blurb: "The largest land empire in history, built on fast horse archers and hard-charging lancers.",
+            troops: { horsearcher: 5, lancer: 3, mangonel: 1 } },
+  egypt:  { name: "New Kingdom Egypt", short: "Egypt", years: "1550 – 1070 BC", primary: "#e0bf5a", secondary: "#2a8c8c", skin: "#b97a4f", helm: "egypt",
+            blurb: "Pharaohs' armies of sickle-sword infantry, swift chariots and Nubian bowmen.",
+            troops: { khopesh: 5, chariot: 2, nubian: 3 } },
+  persia: { name: "Sasanian Persia", short: "Persia", years: "AD 224 – 651", primary: "#6b3fa0", secondary: "#d8a93a", skin: "#d8a27a", helm: "persia",
+            blurb: "Elite Immortals, armored cataphract cavalry and towering war elephants.",
+            troops: { immortal: 5, cataphract: 2, elephant: 1 } },
+  aztec:  { name: "Aztec Empire", short: "Aztecs", years: "1428 – 1521", primary: "#2f9e6b", secondary: "#e2b13c", skin: "#b9764a", helm: "aztec",
+            blurb: "Jaguar and Eagle warriors armed with obsidian-edged clubs, and atlatl dart throwers.",
+            troops: { jaguar: 4, eagle: 3, atlatl: 3 } },
+};
+const PLAYER_UNITS = ["sword", "spear", "archer", "knight", "catapult"];
+
+// Cards: pick one of three after every victory. `n(level)` scales unit cards as battles go on.
+const n = (base) => (lvl) => base + Math.floor(lvl / 4);
+const CARDS = [
+  { id: "swords", kind: "Troops", rarity: "common", unit: "sword", title: "Sword Company", desc: (l) => `+${n(3)(l)} Swordsmen`, apply: (r, l) => addUnits(r, "sword", n(3)(l)) },
+  { id: "spears", kind: "Troops", rarity: "common", unit: "spear", title: "Pike Wall", desc: (l) => `+${n(3)(l)} Spearmen. Double damage against riders and elephants.`, apply: (r, l) => addUnits(r, "spear", n(3)(l)) },
+  { id: "archers", kind: "Troops", rarity: "common", unit: "archer", title: "Archer Corps", desc: (l) => `+${n(3)(l)} Archers`, apply: (r, l) => addUnits(r, "archer", n(3)(l)) },
+  { id: "knights", kind: "Troops", rarity: "rare", unit: "knight", title: "Knights' Charge", desc: (l) => `+${n(2)(l)} Knights. Fast riders who crush archers and siege.`, apply: (r, l) => addUnits(r, "knight", n(2)(l)) },
+  { id: "catapult", kind: "Troops", rarity: "rare", unit: "catapult", title: "Siege Engineers", desc: (l) => `+${n(1)(l)} Catapult. Long range, hits groups.`, apply: (r, l) => addUnits(r, "catapult", n(1)(l)) },
+  { id: "veterans", kind: "Troops", rarity: "rare", unit: "sword", title: "Veteran Company", desc: (l) => `+${n(2)(l)} Swordsmen and +${n(2)(l)} Archers`, apply: (r, l) => { addUnits(r, "sword", n(2)(l)); addUnits(r, "archer", n(2)(l)); } },
+  { id: "blades", kind: "Upgrade", rarity: "common", unit: "sword", title: "Tempered Blades", desc: () => "Swordsmen +30% attack", apply: (r) => mod(r, "sword", "atk", 0.3) },
+  { id: "phalanx", kind: "Upgrade", rarity: "common", unit: "spear", title: "Phalanx Drill", desc: () => "Spearmen +35% health", apply: (r) => mod(r, "spear", "hp", 0.35) },
+  { id: "longbow", kind: "Upgrade", rarity: "rare", unit: "archer", title: "Longbows", desc: () => "Archers +60 range and +20% attack", apply: (r) => { mod(r, "archer", "range", 60); mod(r, "archer", "atk", 0.2); } },
+  { id: "barding", kind: "Upgrade", rarity: "rare", unit: "knight", title: "Barded Horses", desc: () => "Knights +35% health", apply: (r) => mod(r, "knight", "hp", 0.35) },
+  { id: "torsion", kind: "Upgrade", rarity: "rare", unit: "catapult", title: "Torsion Springs", desc: () => "Catapults +40% attack, fire 15% faster", apply: (r) => { mod(r, "catapult", "atk", 0.4); mod(r, "catapult", "rate", 0.15); } },
+  { id: "drums", kind: "Upgrade", rarity: "epic", icon: "banner", title: "War Drums", desc: () => "All troops attack 15% faster", apply: (r) => mod(r, "all", "rate", 0.15) },
+  { id: "royal", kind: "Upgrade", rarity: "epic", icon: "banner", title: "Royal Standard", desc: () => "All troops +15% health and +10% attack", apply: (r) => { mod(r, "all", "hp", 0.15); mod(r, "all", "atk", 0.1); } },
+  { id: "surgeons", kind: "Upgrade", rarity: "epic", icon: "banner", title: "Field Surgeons", desc: () => "All troops heal 3 health per second in battle", apply: (r) => { r.regen += 3; } },
+  { id: "tax", kind: "Treasury", rarity: "common", icon: "coins", title: "Tax Collectors", desc: () => "+20 gold after every victory", apply: (r) => { r.tax += 20; } },
+  { id: "plunder", kind: "Treasury", rarity: "common", icon: "coins", title: "Plunder", desc: (l) => `+${60 + l * 10} gold now`, apply: (r, l) => { r.gold += 60 + l * 10; } },
+  { id: "office", kind: "Treasury", rarity: "rare", icon: "coins", title: "Recruiting Office", desc: () => "Recruiting costs 20% less", apply: (r) => { r.discount = Math.min(0.6, r.discount + 0.2); } },
+];
+const RARITY_WEIGHT = { common: 60, rare: 30, epic: 10 };
+
+// =====================================================================  RUN STATE
+const SAVE_KEY = "empireclash.v1";
+let store = { best: 0, run: null };
+try { Object.assign(store, JSON.parse(localStorage.getItem(SAVE_KEY) || "{}")); } catch (e) {}
+function persist() { try { localStorage.setItem(SAVE_KEY, JSON.stringify(store)); } catch (e) {} }
+
+function newRun() {
+  const mods = {};
+  for (const k of [...PLAYER_UNITS, "all"]) mods[k] = { hp: 0, atk: 0, rate: 0, range: 0 };
+  return { level: 1, gold: 40, army: { sword: 4, spear: 2, archer: 2 }, recruited: {}, mods, tax: 0, discount: 0, regen: 0,
+           picked: [], enemy: null, lastEmpire: null, stage: "draft" };
+}
+function addUnits(r, key, count) { r.army[key] = (r.army[key] || 0) + Math.max(0, Math.min(count, ARMY_CAP - armySize(r))); }
+function mod(r, key, stat, v) { r.mods[key][stat] += v; }
+const ENEMY_CAP = 40;      // most troops an enemy fields
+const ARMY_CAP = 60;       // most troops your camp can hold
+const armySize = (r) => Object.values(r.army).reduce((a, b) => a + b, 0);
+const victoryGold = (r) => 20 + r.level * 6 + r.tax;
+const rand = (a, b) => a + Math.random() * (b - a);
+const pick = (arr) => arr[Math.floor(Math.random() * arr.length)];
+
+function playerStats(r, key) {
+  const b = UNITS[key], m = r.mods[key], a = r.mods.all;
+  return { ...b, hp: Math.round(b.hp * (1 + m.hp + a.hp)), atk: +(b.atk * (1 + m.atk + a.atk)).toFixed(1),
+           cd: b.cd / (1 + m.rate + a.rate), range: (b.range || 0) + m.range, regen: r.regen };
+}
+function recruitCost(r, key) {
+  return Math.round(UNITS[key].cost * (1 - r.discount) * (1 + 0.12 * (r.recruited[key] || 0)));
+}
+function makeEnemy(level, last) {
+  const keys = Object.keys(EMPIRES).filter((k) => k !== last);
+  const emp = pick(keys), E = EMPIRES[emp];
+  // Armies grow in size early on, then (once capped) in strength.
+  const count = Math.min(ENEMY_CAP, 4 + Math.floor(level * 1.5));
+  const army = {};
+  const entries = Object.entries(E.troops), total = entries.reduce((s, [, w]) => s + w, 0);
+  // Always bring at least one of the empire's main troop, then fill by weight.
+  army[entries[0][0]] = 1;
+  for (let i = 1; i < count; i++) {
+    let roll = Math.random() * total;
+    for (const [k, w] of entries) { if (roll < w) { army[k] = (army[k] || 0) + 1; break; } roll -= w; }
+  }
+  return { emp, army, scale: +Math.pow(1.1, level - 1).toFixed(2) };
+}
+function drawCards(r) {
+  const pool = CARDS.filter((c) => !c.unit || c.kind !== "Upgrade" || r.army[c.unit]);   // no upgrades for troops you don't have
+  const out = [];
+  while (out.length < 3 && out.length < pool.length) {
+    const avail = pool.filter((c) => !out.includes(c));
+    const total = avail.reduce((s, c) => s + RARITY_WEIGHT[c.rarity], 0);
+    let roll = Math.random() * total;
+    for (const c of avail) { if (roll < RARITY_WEIGHT[c.rarity]) { out.push(c); break; } roll -= RARITY_WEIGHT[c.rarity]; }
+  }
+  return out.map((c) => c.id);
+}
+
+// =====================================================================  ART (simple 2D soldiers)
+const INK = "#2b2118";
+function rr(g, x, y, w, h, r) { g.beginPath(); g.roundRect(x, y, w, h, r); }
+function circ(g, x, y, r) { g.beginPath(); g.arc(x, y, r, 0, Math.PI * 2); }
+function shade(hex, amt) {   // lighten (amt > 0) or darken (amt < 0) a #rrggbb color
+  const n = parseInt(hex.slice(1), 16);
+  const f = (c) => Math.max(0, Math.min(255, Math.round(amt > 0 ? c + (255 - c) * amt : c * (1 + amt))));
+  return `rgb(${f(n >> 16)},${f((n >> 8) & 255)},${f(n & 255)})`;
+}
+
+// Draws one troop with its feet at (0,0). t = animation clock, flash = hit flash 0..1, swing = attack swing 0..1.
+function drawTroop(g, key, E, t, flash, swing) {
+  const U = UNITS[key];
+  g.lineJoin = "round"; g.lineCap = "round";
+  // shadow
+  g.fillStyle = "rgba(0,0,0,0.22)"; g.beginPath();
+  g.ellipse(0, 1, U.mount === "elephant" ? 22 : U.mount ? 15 : 8, 3.5, 0, 0, Math.PI * 2); g.fill();
+  switch (U.mount) {
+    case "horse": drawHorse(g, E, t, U.barded); drawPerson(g, U, E, t, flash, swing, -10, true); break;
+    case "chariot": drawChariot(g, E, t); drawPerson(g, U, E, t, flash, swing, -9, true, -4); break;
+    case "elephant": drawElephant(g, E, t, flash); drawPerson(g, U, E, t, flash, swing, -33, true, -4); break;
+    case "siege": drawSiege(g, U, E, t, swing, flash); break;
+    default: drawPerson(g, U, E, t, flash, swing, 0, false);
+  }
+}
+function tint(color, flash) { return flash > 0 ? shade(color.startsWith("#") ? color : "#888888", Math.min(0.85, flash)) : color; }
+
+function drawPerson(g, U, E, t, flash, swing, y0, riding, x0 = 0) {
+  g.save(); g.translate(x0, y0);
+  if (!riding) {   // legs
+    const s = Math.sin(t * 10) * 2.2;
+    g.strokeStyle = INK; g.lineWidth = 2.6; g.beginPath();
+    g.moveTo(-2.5, -8); g.lineTo(-3 + s, 0); g.moveTo(2.5, -8); g.lineTo(3 - s, 0); g.stroke();
+  }
+  // shield behind the body
+  if (U.shield === "scutum" || U.shield === "tall" || U.shield === "wicker") {
+    const tall = U.shield === "scutum" ? [-11, -20, 8, 16] : [-11, -21, 7, 16];
+    rr(g, ...tall, 3);
+    g.fillStyle = tint(U.shield === "wicker" ? "#c9a46a" : U.shield === "scutum" ? E.primary : E.secondary, flash); g.fill();
+    g.strokeStyle = INK; g.lineWidth = 1.6; g.stroke();
+    if (U.shield === "scutum") { circ(g, -7, -12, 1.8); g.fillStyle = E.secondary; g.fill(); }
+  }
+  // tunic
+  rr(g, -6, -18, 12, 11, 3); g.fillStyle = tint(E.primary, flash); g.fill(); g.strokeStyle = INK; g.lineWidth = 1.6; g.stroke();
+  g.fillStyle = E.secondary; g.fillRect(-6, -10, 12, 2);
+  if (U.look === "jaguar") { g.fillStyle = INK; for (const [x, y] of [[-3, -15], [2, -13], [-1, -12]]) { circ(g, x, y, 0.9); g.fill(); } }
+  if (U.shield === "round") { circ(g, -7, -12, 5); g.fillStyle = tint(E.secondary, flash); g.fill(); g.strokeStyle = INK; g.stroke(); circ(g, -7, -12, 1.5); g.fillStyle = INK; g.fill(); }
+  // head + headgear
+  circ(g, 0, -22, 4.6); g.fillStyle = E.skin; g.fill(); g.strokeStyle = INK; g.lineWidth = 1.4; g.stroke();
+  drawHelm(g, E.helm, E, U);
+  // weapon (swings on attack)
+  g.save(); g.translate(5, -13); g.rotate(-swing * 1.1);
+  drawWeapon(g, U.weapon);
+  g.restore();
+  g.restore();
+}
+function drawHelm(g, helm, E, U) {
+  g.strokeStyle = INK; g.lineWidth = 1.3;
+  switch (helm) {
+    case "player":
+      g.beginPath(); g.arc(0, -23, 5, Math.PI, 0); g.closePath(); g.fillStyle = "#9aa3ad"; g.fill(); g.stroke();
+      g.fillRect(-6, -23.5, 12, 1.6);
+      g.beginPath(); g.moveTo(0, -28); g.quadraticCurveTo(5, -33, 8, -29); g.strokeStyle = E.primary; g.lineWidth = 2.4; g.stroke(); break;
+    case "roman":
+      g.beginPath(); g.arc(0, -23, 5, Math.PI, 0); g.closePath(); g.fillStyle = "#d4a93c"; g.fill(); g.stroke();
+      g.beginPath(); g.arc(0, -27, 5, Math.PI * 1.1, Math.PI * 1.9); g.strokeStyle = "#c0262b"; g.lineWidth = 3; g.stroke(); break;
+    case "mongol":
+      g.beginPath(); g.moveTo(-5, -23); g.lineTo(0, -31); g.lineTo(5, -23); g.closePath(); g.fillStyle = E.secondary; g.fill(); g.stroke();
+      rr(g, -6, -25, 12, 3, 1.5); g.fillStyle = "#7a5634"; g.fill(); g.stroke(); break;
+    case "egypt":
+      g.beginPath(); g.moveTo(-5, -26); g.quadraticCurveTo(0, -30, 5, -26); g.lineTo(6.5, -16); g.lineTo(3.5, -18); g.lineTo(-3.5, -18); g.lineTo(-6.5, -16); g.closePath();
+      g.fillStyle = "#2a6fb0"; g.fill(); g.stroke();
+      g.strokeStyle = "#f0d36a"; g.lineWidth = 1; g.beginPath(); g.moveTo(-5.5, -22); g.lineTo(-5, -18); g.moveTo(5.5, -22); g.lineTo(5, -18); g.stroke();
+      circ(g, 0, -22, 3.2); g.fillStyle = E.skin; g.fill(); break;
+    case "persia":
+      rr(g, -4.5, -33, 9, 9, 4); g.fillStyle = E.primary; g.fill(); g.strokeStyle = INK; g.stroke();
+      g.fillStyle = E.secondary; g.fillRect(-5, -26, 10, 2); break;
+    case "aztec":
+      if (U.look === "eagle") {
+        g.beginPath(); g.arc(0, -24, 5.5, Math.PI, 0); g.closePath(); g.fillStyle = "#f2f0e6"; g.fill(); g.stroke();
+        g.beginPath(); g.moveTo(3, -24); g.lineTo(9, -21); g.lineTo(3, -21); g.closePath(); g.fillStyle = "#e2b13c"; g.fill(); g.stroke();
+      } else {
+        for (let i = -2; i <= 2; i++) {
+          g.save(); g.translate(0, -25); g.rotate(i * 0.35);
+          g.beginPath(); g.ellipse(0, -6, 1.8, 5.5, 0, 0, Math.PI * 2); g.fillStyle = i % 2 ? "#2f9e6b" : "#e2b13c"; g.fill(); g.lineWidth = 1; g.stroke();
+          g.restore();
+        }
+        if (U.look === "jaguar") { g.beginPath(); g.arc(0, -23, 5.2, Math.PI, 0); g.closePath(); g.fillStyle = "#e2b13c"; g.fill(); g.stroke(); circ(g, -2, -25, 0.8); circ(g, 2, -26, 0.8); g.fillStyle = INK; g.fill(); }
+      }
+      break;
+  }
+}
+function drawWeapon(g, w) {
+  g.strokeStyle = INK; g.lineWidth = 1.2;
+  switch (w) {
+    case "sword":
+      g.strokeStyle = "#cfd5db"; g.lineWidth = 2.4; g.beginPath(); g.moveTo(0, 0); g.lineTo(5, -11); g.stroke();
+      g.strokeStyle = INK; g.lineWidth = 1.8; g.beginPath(); g.moveTo(-2, -1); g.lineTo(3, 1.5); g.stroke(); break;
+    case "spear": case "lance": {
+      const len = w === "lance" ? 26 : 24;
+      g.strokeStyle = "#7a5634"; g.lineWidth = 2; g.beginPath(); g.moveTo(0, 8); g.lineTo(w === "lance" ? 8 : 1, -len + 8); g.stroke();
+      g.save(); g.translate(w === "lance" ? 8 : 1, -len + 8); g.rotate(w === "lance" ? 0.32 : 0.04);
+      g.beginPath(); g.moveTo(-2, 0); g.lineTo(0, -5); g.lineTo(2, 0); g.closePath(); g.fillStyle = "#cfd5db"; g.fill(); g.strokeStyle = INK; g.lineWidth = 1; g.stroke(); g.restore(); break;
+    }
+    case "bow":
+      g.strokeStyle = "#7a4a26"; g.lineWidth = 2; g.beginPath(); g.arc(1, -2, 8, -1.2, 1.2); g.stroke();
+      g.strokeStyle = "#efe6cf"; g.lineWidth = 0.8; g.beginPath(); g.moveTo(1 + 8 * Math.cos(-1.2), -2 + 8 * Math.sin(-1.2)); g.lineTo(1 + 8 * Math.cos(1.2), -2 + 8 * Math.sin(1.2)); g.stroke(); break;
+    case "khopesh":
+      g.strokeStyle = "#d9b45a"; g.lineWidth = 2.4; g.beginPath(); g.moveTo(0, 0); g.lineTo(2, -6); g.quadraticCurveTo(4, -12, 9, -11); g.stroke(); break;
+    case "club":
+      g.save(); g.rotate(0.3); rr(g, -1.5, -14, 4, 14, 1.5); g.fillStyle = "#8a5a2b"; g.fill(); g.strokeStyle = INK; g.lineWidth = 1; g.stroke();
+      g.fillStyle = "#1c1c22"; for (let y = -12; y < -2; y += 3) { g.fillRect(-2.6, y, 1.3, 1.6); g.fillRect(2.4, y, 1.3, 1.6); } g.restore(); break;
+    case "javelin":
+      g.strokeStyle = "#7a5634"; g.lineWidth = 1.6; g.beginPath(); g.moveTo(-2, 4); g.lineTo(6, -16); g.stroke();
+      g.fillStyle = "#1c1c22"; g.beginPath(); g.moveTo(5, -15); g.lineTo(7.5, -20); g.lineTo(7.5, -14.5); g.fill(); break;
+  }
+}
+function drawHorse(g, E, t, barded) {
+  const s = Math.sin(t * 12) * 3;
+  g.strokeStyle = INK; g.lineWidth = 2.2;
+  g.beginPath(); g.moveTo(-8, -6); g.lineTo(-9 + s, 0); g.moveTo(-4, -6); g.lineTo(-4 - s, 0); g.moveTo(5, -6); g.lineTo(6 + s, 0); g.moveTo(9, -6); g.lineTo(9 - s, 0); g.stroke();
+  g.beginPath(); g.ellipse(0, -9, 12, 5.5, 0, 0, Math.PI * 2); g.fillStyle = barded ? "#8d8f94" : "#7a4a26"; g.fill(); g.lineWidth = 1.6; g.stroke();
+  if (barded) { g.fillStyle = E.primary; g.fillRect(-9, -9, 18, 3); }
+  else { g.fillStyle = E.primary; g.fillRect(-4, -14, 8, 4); }
+  g.beginPath(); g.moveTo(9, -11); g.lineTo(13, -19); g.lineTo(17, -17); g.lineTo(14, -10); g.closePath(); g.fillStyle = barded ? "#8d8f94" : "#7a4a26"; g.fill(); g.stroke();
+  g.beginPath(); g.moveTo(-12, -10); g.quadraticCurveTo(-17, -8, -15, -2); g.strokeStyle = "#3a2414"; g.lineWidth = 2.2; g.stroke();
+}
+function drawChariot(g, E, t) {
+  // horse in front, car with a big wheel behind
+  g.save(); g.translate(10, 0); g.scale(0.85, 0.85); drawHorse(g, E, t, false); g.restore();
+  g.strokeStyle = INK; g.lineWidth = 1.6;
+  rr(g, -12, -16, 12, 9, 2); g.fillStyle = E.secondary; g.fill(); g.stroke();
+  g.strokeStyle = "#7a5634"; g.lineWidth = 2; g.beginPath(); g.moveTo(0, -10); g.lineTo(10, -8); g.stroke();
+  circ(g, -6, -6, 6); g.fillStyle = "#c9a46a"; g.fill(); g.strokeStyle = INK; g.lineWidth = 1.6; g.stroke();
+  g.save(); g.translate(-6, -6); g.rotate(t * 8);
+  g.beginPath(); for (let i = 0; i < 3; i++) { g.moveTo(0, 0); g.lineTo(6 * Math.cos(i * 2.09), 6 * Math.sin(i * 2.09)); } g.lineWidth = 1; g.stroke(); g.restore();
+}
+function drawElephant(g, E, t, flash) {
+  const s = Math.sin(t * 5) * 2;
+  g.fillStyle = "#7d8086"; g.strokeStyle = INK; g.lineWidth = 1.8;
+  for (const [x, ph] of [[-13, 1], [-6, -1], [6, 1], [12, -1]]) { rr(g, x - 3, -10 + ph * s * 0.3, 6, 10, 2); g.fill(); g.stroke(); }
+  g.beginPath(); g.ellipse(0, -17, 20, 12, 0, 0, Math.PI * 2); g.fillStyle = tint("#8d8f94", flash); g.fill(); g.stroke();
+  circ(g, 17, -21, 8); g.fill(); g.stroke();
+  g.beginPath(); g.ellipse(12, -21, 5, 7, 0.2, 0, Math.PI * 2); g.fillStyle = "#7d8086"; g.fill(); g.stroke();
+  g.beginPath(); g.moveTo(23, -19); g.quadraticCurveTo(28, -10 + s, 24, -3); g.lineWidth = 4; g.strokeStyle = "#7d8086"; g.stroke(); g.lineWidth = 1.4; g.strokeStyle = INK;
+  g.beginPath(); g.moveTo(20, -16); g.quadraticCurveTo(26, -14, 27, -18); g.strokeStyle = "#f5efe0"; g.lineWidth = 2.4; g.stroke();
+  rr(g, -9, -34, 18, 8, 2); g.fillStyle = E.primary; g.fill(); g.strokeStyle = INK; g.lineWidth = 1.6; g.stroke();
+  g.fillStyle = E.secondary; g.fillRect(-9, -28, 18, 2);
+}
+function drawSiege(g, U, E, t, swing, flash) {
+  g.strokeStyle = INK; g.lineWidth = 1.6;
+  rr(g, -15, -9, 30, 5, 2); g.fillStyle = tint("#8a5a2b", flash); g.fill(); g.stroke();
+  for (const x of [-10, 10]) { circ(g, x, -3, 4); g.fillStyle = "#6b4423"; g.fill(); g.stroke(); }
+  if (U.siege === "ballista") {
+    rr(g, -3, -20, 6, 12, 1); g.fillStyle = "#8a5a2b"; g.fill(); g.stroke();
+    g.beginPath(); g.moveTo(-12, -16); g.quadraticCurveTo(0, -24 + swing * 4, 12, -16); g.strokeStyle = "#5a3a1c"; g.lineWidth = 2.4; g.stroke();
+    if (swing < 0.3) { g.strokeStyle = "#cfd5db"; g.lineWidth = 1.6; g.beginPath(); g.moveTo(0, -12); g.lineTo(0, -26); g.stroke(); }
+  } else {
+    g.beginPath(); g.moveTo(-6, -9); g.lineTo(0, -20); g.lineTo(6, -9); g.strokeStyle = INK; g.lineWidth = 2.2; g.stroke();
+    const a = -0.3 - swing * 1.6;
+    g.save(); g.translate(0, -16); g.rotate(a);
+    g.strokeStyle = "#7a5634"; g.lineWidth = 2.6; g.beginPath(); g.moveTo(8, 0); g.lineTo(-14, 0); g.stroke();
+    circ(g, -15, -1, 3); g.fillStyle = swing < 0.3 ? "#8a8a8a" : "#6b4423"; g.fill(); g.strokeStyle = INK; g.lineWidth = 1; g.stroke();
+    g.restore();
+  }
+  // crew member
+  g.save(); g.translate(-19, 0); g.scale(0.8, 0.8); drawPerson(g, { weapon: "none" }, E, t * 0.3, flash, 0, 0, false); g.restore();
+}
+function drawBannerIcon(g, color) {
+  g.strokeStyle = INK; g.lineWidth = 2;
+  g.beginPath(); g.moveTo(-12, 16); g.lineTo(-12, -22); g.strokeStyle = "#6b4423"; g.lineWidth = 3; g.stroke();
+  g.beginPath(); g.moveTo(-11, -20); g.lineTo(14, -20); g.lineTo(14, 4); g.lineTo(1, -2); g.lineTo(-11, 4); g.closePath();
+  g.fillStyle = color; g.fill(); g.strokeStyle = INK; g.lineWidth = 2; g.stroke();
+  g.beginPath(); g.moveTo(2, -16); g.lineTo(4.5, -10); g.lineTo(10, -10); g.lineTo(5.5, -6); g.lineTo(7, 0); g.lineTo(2, -3.5); g.lineTo(-3, 0); g.lineTo(-1.5, -6); g.lineTo(-6, -10); g.lineTo(-0.5, -10); g.closePath();
+  g.fillStyle = "#e2b43a"; g.fill(); g.lineWidth = 1; g.stroke();
+}
+function drawCoinsIcon(g) {
+  for (const [x, y] of [[-8, 8], [6, 8], [-1, 2], [-1, -4], [-1, -10]]) {
+    g.beginPath(); g.ellipse(x, y, 10, 4, 0, 0, Math.PI * 2); g.fillStyle = "#e3b23a"; g.fill(); g.strokeStyle = INK; g.lineWidth = 1.6; g.stroke();
+  }
+}
+// Paint a troop (or icon) centered into a small canvas element.
+function paintIcon(canvas, what, E, zoom = 1) {
+  const r = canvas.getBoundingClientRect(), d = Math.min(window.devicePixelRatio || 1, 3);
+  canvas.width = Math.round(r.width * d); canvas.height = Math.round(r.height * d);
+  const g = canvas.getContext("2d"); g.setTransform(d, 0, 0, d, 0, 0);
+  const s = (r.width / 44) * zoom;
+  g.translate(r.width / 2, r.height * 0.5); g.scale(s, s);
+  if (what === "banner") return drawBannerIcon(g, PLAYER.primary);
+  if (what === "coins") return drawCoinsIcon(g);
+  const U = UNITS[what];
+  const big = U.mount === "elephant" ? 0.6 : U.mount ? 0.85 : 1.15;
+  g.scale(big, big);
+  g.translate(U.mount === "elephant" ? -4 : 0, U.mount === "elephant" ? 22 : U.mount ? 15 : 14);
+  drawTroop(g, what, E, 0.3, 0, 0);
+}
+
+// =====================================================================  BATTLE
+class Battle {
+  constructor(run, W, H) {
+    this.W = W; this.H = H; this.t = 0; this.over = false; this.endT = 0; this.winner = null;
+    this.units = []; this.shots = []; this.marks = [];
+    const en = run.enemy, E = EMPIRES[en.emp];
+    this.E = E;
+    const mine = [], theirs = [];
+    for (const [k, c] of Object.entries(run.army)) for (let i = 0; i < c; i++) mine.push(this.make(0, k, PLAYER, playerStats(run, k)));
+    for (const [k, c] of Object.entries(en.army)) for (let i = 0; i < c; i++) {
+      const b = UNITS[k];
+      theirs.push(this.make(1, k, E, { ...b, hp: Math.round(b.hp * en.scale), atk: b.atk * en.scale, range: b.range || 0, regen: 0 }));
+    }
+    this.place(mine, 0); this.place(theirs, 1);
+    this.units = [...mine, ...theirs];
+    this.startHp = [this.sideHp(0), this.sideHp(1)];
+  }
+  make(side, key, E, s) {
+    const U = UNITS[key];
+    const rad = U.mount === "elephant" ? 20 : U.mount ? 13 : 8;
+    return { side, key, E, U, hp: s.hp, maxHp: s.hp, atk: s.atk, cd: s.cd, cdLeft: rand(0, s.cd), range: Math.max(s.range || 0, 0),
+             speed: U.speed * rand(0.92, 1.08), splash: U.splash || 0, regen: s.regen || 0, rad, x: 0, y: 0, target: null,
+             retarget: 0, flash: 0, swing: 0, anim: rand(0, 6), dead: false, deadT: 0, facing: side === 0 ? 1 : -1 };
+  }
+  // Formation: melee in front, riders next, archers behind, siege at the back.
+  place(list, side) {
+    const order = { inf: 0, spear: 0, beast: 0, cav: 1, ranged: 2, siege: 3 };
+    const rows = [[], [], [], []];
+    for (const u of list) rows[order[u.U.role]].push(u);
+    const gap = 24, perLine = Math.max(4, Math.floor((this.W - 30) / gap));
+    let lineIdx = 0;
+    for (const row of rows) {
+      for (let i = 0; i < row.length; i += perLine) {
+        const chunk = row.slice(i, i + perLine), width = (chunk.length - 1) * gap;
+        const y = side === 0 ? this.H * 0.62 + lineIdx * 26 : this.H * 0.38 - lineIdx * 26;
+        chunk.forEach((u, j) => { u.x = this.W / 2 - width / 2 + j * gap + rand(-3, 3); u.y = Math.min(this.H - 12, Math.max(30, y + rand(-3, 3))); });
+        lineIdx++;
+      }
+    }
+  }
+  sideHp(side) { return this.units.reduce((s, u) => s + (u.side === side && !u.dead ? u.hp : 0), 0); }
+  alive(side) { return this.units.filter((u) => u.side === side && !u.dead).length; }
+  mult(a, d) {
+    const c = COUNTERS[a.U.role]?.[d.U.role] || 1;
+    return c * (a.U.bonus?.[d.U.role] || 1);
+  }
+  hit(attacker, target, dmg) {
+    if (target.dead) return;
+    target.hp -= dmg * this.mult(attacker, target);
+    target.flash = 1;
+    if (target.hp <= 0) { target.dead = true; target.deadT = 0; }
+  }
+  splashAt(attacker, x, y, radius, dmg, skip) {
+    for (const u of this.units) {
+      if (u.dead || u.side === attacker.side || u === skip) continue;
+      const d = Math.hypot(u.x - x, u.y - y);
+      if (d < radius + u.rad * 0.5) this.hit(attacker, u, dmg * (d < radius * 0.4 ? 1 : 0.55));
+    }
+  }
+  tick(dt) {
+    this.t += dt;
+    const live = this.units.filter((u) => !u.dead);
+    for (const u of live) {
+      u.flash = Math.max(0, u.flash - dt * 5); u.swing = Math.max(0, u.swing - dt * 3);
+      if (u.regen) u.hp = Math.min(u.maxHp, u.hp + u.regen * dt);
+      u.retarget -= dt;
+      if (!u.target || u.target.dead || u.retarget <= 0) {
+        let best = null, bd = Infinity;
+        for (const v of live) if (v.side !== u.side && !v.dead) { const d = (v.x - u.x) ** 2 + (v.y - u.y) ** 2; if (d < bd) { bd = d; best = v; } }
+        u.target = best; u.retarget = 0.4;
+      }
+      const tg = u.target; if (!tg) continue;
+      const dx = tg.x - u.x, dy = tg.y - u.y, dist = Math.hypot(dx, dy) || 1;
+      const reach = (u.range || 0) + u.rad + tg.rad + 2;
+      if (Math.abs(dx) > 2) u.facing = dx > 0 ? 1 : -1;
+      if (dist > reach) {
+        u.x += (dx / dist) * u.speed * dt; u.y += (dy / dist) * u.speed * dt; u.anim += dt;
+      } else {
+        u.cdLeft -= dt;
+        if (u.cdLeft <= 0) {
+          u.cdLeft = u.cd * rand(0.9, 1.1); u.swing = 1;
+          if (u.U.proj) this.shots.push({ from: u, target: tg, x0: u.x, y0: u.y - 14, x1: tg.x, y1: tg.y - 8, t: 0, dur: Math.max(0.25, dist / 420), kind: u.U.proj, dmg: u.atk });
+          else { this.hit(u, tg, u.atk); if (u.splash) this.splashAt(u, tg.x, tg.y, u.splash, u.atk * 0.5, tg); }
+        }
+      }
+    }
+    // keep troops from stacking on each other
+    for (let i = 0; i < live.length; i++) for (let j = i + 1; j < live.length; j++) {
+      const a = live[i], b = live[j]; if (a.dead || b.dead) continue;
+      const dx = b.x - a.x, dy = b.y - a.y, min = (a.rad + b.rad) * 0.85, d2 = dx * dx + dy * dy;
+      if (d2 > 0 && d2 < min * min) {
+        const d = Math.sqrt(d2), push = (min - d) / 2, nx = dx / d, ny = dy / d;
+        a.x -= nx * push; a.y -= ny * push; b.x += nx * push; b.y += ny * push;
+      }
+    }
+    for (const u of live) { u.x = Math.max(10, Math.min(this.W - 10, u.x)); u.y = Math.max(24, Math.min(this.H - 6, u.y)); }
+    // projectiles
+    for (const s of this.shots) {
+      s.t += dt;
+      if (!s.target.dead) { s.x1 = s.target.x; s.y1 = s.target.y - 8; }
+      if (s.t >= s.dur && !s.done) {
+        s.done = true;
+        if (s.kind === "rock") { this.splashAt(s.from, s.x1, s.y1 + 8, s.from.splash, s.dmg); this.marks.push({ x: s.x1, y: s.y1 + 8, t: 0 }); }
+        else if (!s.target.dead) this.hit(s.from, s.target, s.dmg);
+      }
+    }
+    this.shots = this.shots.filter((s) => !s.done);
+    for (const u of this.units) if (u.dead) u.deadT += dt;
+    this.units = this.units.filter((u) => !u.dead || u.deadT < 1.6);
+    for (const m of this.marks) m.t += dt;
+    this.marks = this.marks.filter((m) => m.t < 1.2);
+    if (!this.over) {
+      const a = this.alive(0), b = this.alive(1);
+      if (a === 0 || b === 0 || this.t > 120) {
+        this.over = true;
+        this.winner = b === 0 && a > 0 ? 0 : a === 0 ? 1 : (this.sideHp(0) / this.startHp[0] >= this.sideHp(1) / this.startHp[1] ? 0 : 1);
+      }
+    } else this.endT += dt;
+  }
+  draw(g) {
+    const W = this.W, H = this.H;
+    // field
+    g.fillStyle = "#7ea456"; g.fillRect(0, 0, W, H);
+    g.fillStyle = "rgba(255,255,255,0.05)"; for (let y = 0; y < H; y += 40) g.fillRect(0, y, W, 20);
+    g.fillStyle = "rgba(120, 84, 48, 0.18)"; g.beginPath(); g.ellipse(W * 0.5, H * 0.5, W * 0.45, H * 0.12, 0, 0, Math.PI * 2); g.fill();
+    g.fillStyle = shade(this.E.primary, 0.1); g.globalAlpha = 0.25; g.fillRect(0, 0, W, 18); g.globalAlpha = 1;
+    g.fillStyle = PLAYER.primary; g.globalAlpha = 0.25; g.fillRect(0, H - 18, W, 18); g.globalAlpha = 1;
+    for (const m of this.marks) { g.fillStyle = `rgba(90,60,30,${0.4 * (1 - m.t / 1.2)})`; g.beginPath(); g.ellipse(m.x, m.y, 24, 9, 0, 0, Math.PI * 2); g.fill(); }
+    // troops, back to front
+    const sorted = [...this.units].sort((a, b) => a.y - b.y);
+    for (const u of sorted) {
+      g.save(); g.translate(u.x, u.y);
+      if (u.dead) { g.globalAlpha = Math.max(0, 1 - u.deadT / 1.6); g.rotate(u.facing * 1.35); }
+      else { // team ring under the feet
+        g.strokeStyle = u.side === 0 ? "rgba(47,95,179,0.85)" : "rgba(179,38,43,0.85)"; g.lineWidth = 2;
+        g.beginPath(); g.ellipse(0, 1, u.rad + 2, 4, 0, 0, Math.PI * 2); g.stroke();
+      }
+      g.scale(u.facing * 1.2, 1.2);
+      drawTroop(g, u.key, u.E, u.anim, u.flash, u.swing);
+      g.restore();
+      if (!u.dead && u.hp < u.maxHp) {
+        const w = u.U.mount === "elephant" ? 38 : 22, top = u.U.mount === "elephant" ? 60 : u.U.mount ? 45 : 40;
+        g.fillStyle = INK; g.fillRect(u.x - w / 2 - 1, u.y - top - 1, w + 2, 5);
+        g.fillStyle = u.side === 0 ? "#5fb0ff" : "#ff6b5f"; g.fillRect(u.x - w / 2, u.y - top, w * Math.max(0, u.hp / u.maxHp), 3);
+      }
+    }
+    // projectiles, lobbed in an arc
+    for (const s of this.shots) {
+      const k = Math.min(1, s.t / s.dur), x = s.x0 + (s.x1 - s.x0) * k, yLine = s.y0 + (s.y1 - s.y0) * k;
+      const arc = (s.kind === "rock" ? 70 : s.kind === "bolt" ? 10 : 30) * Math.sin(Math.PI * k), y = yLine - arc;
+      const k2 = Math.min(1, k + 0.05), nx = s.x0 + (s.x1 - s.x0) * k2, ny = s.y0 + (s.y1 - s.y0) * k2 - (s.kind === "rock" ? 70 : s.kind === "bolt" ? 10 : 30) * Math.sin(Math.PI * k2);
+      const ang = Math.atan2(ny - y, nx - x);
+      g.save(); g.translate(x, y); g.rotate(ang);
+      if (s.kind === "rock") { circ(g, 0, 0, 4.5); g.fillStyle = "#8a8a8a"; g.fill(); g.strokeStyle = INK; g.lineWidth = 1.4; g.stroke(); }
+      else {
+        const len = s.kind === "bolt" ? 16 : s.kind === "javelin" ? 14 : 10;
+        g.strokeStyle = s.kind === "bolt" ? "#5a3a1c" : "#3b2a1a"; g.lineWidth = s.kind === "bolt" ? 2.4 : 1.4;
+        g.beginPath(); g.moveTo(-len, 0); g.lineTo(0, 0); g.stroke();
+        g.fillStyle = "#cfd5db"; g.beginPath(); g.moveTo(0, -2); g.lineTo(4, 0); g.lineTo(0, 2); g.fill();
+      }
+      g.restore();
+    }
+  }
+}
+
+// =====================================================================  UI
+const $ = (id) => document.getElementById(id);
+const SCREENS = ["title", "draft", "camp", "battle", "result"];
+function show(...ids) { for (const s of SCREENS) $(s).hidden = !ids.includes(s); }
+let run = store.run;
+let battle = null, speed = 1, raf = 0;
+
+function title() {
+  run = store.run;
+  show("title");
+  $("continueBtn").hidden = !run;
+  $("confirmNew").hidden = true;
+  $("record").textContent = store.best ? `Best campaign: ${store.best} ${store.best === 1 ? "victory" : "victories"}` : "Five empires. One banner. How far can you march?";
+  requestAnimationFrame(drawTitleArt);
+}
+function drawTitleArt() {
+  const c = $("titleArt"), r = c.getBoundingClientRect(), d = Math.min(window.devicePixelRatio || 1, 3);
+  c.width = r.width * d; c.height = r.height * d;
+  const g = c.getContext("2d"); g.setTransform(d, 0, 0, d, 0, 0);
+  const lineup = [["sword", PLAYER, 1], ["knight", PLAYER, 1], ["archer", PLAYER, 1], ["legionary", EMPIRES.rome, -1], ["lancer", EMPIRES.mongol, -1], ["elephant", EMPIRES.persia, -1], ["jaguar", EMPIRES.aztec, -1], ["chariot", EMPIRES.egypt, -1]];
+  const W = r.width, step = W / (lineup.length + 1);
+  g.fillStyle = "#7ea456"; rr(g, 0, r.height * 0.62, W, r.height * 0.38, 12); g.fill();
+  lineup.forEach(([k, E, f], i) => { g.save(); g.translate(step * (i + 1), r.height * 0.9); g.scale(1.5 * f, 1.5); drawTroop(g, k, E, i, 0, 0); g.restore(); });
+}
+
+function startDraft(first) {
+  run.stage = "draft";
+  if (!run.offer) run.offer = drawCards(run);
+  store.run = run; persist();
+  show("draft");
+  $("draftEyebrow").textContent = first ? "Raise your banner" : `Victory ${run.level - 1} spoils`;
+  $("draftTitle").textContent = first ? "Choose your first card" : "Choose 1 of 3 cards";
+  const lvl = run.level;
+  $("cards").innerHTML = run.offer.map((id) => {
+    const c = CARDS.find((x) => x.id === id);
+    return `<button class="card r-${c.rarity}" data-card="${c.id}">
+      <span class="r">${c.rarity}</span>
+      <canvas data-icon="${c.icon || c.unit}"></canvas>
+      <div><div class="kind">${c.kind}</div><h3>${c.title}</h3><p>${c.desc(lvl)}</p></div>
+    </button>`;
+  }).join("");
+  requestAnimationFrame(() => document.querySelectorAll("#cards canvas").forEach((cv) => paintIcon(cv, cv.dataset.icon, PLAYER, 1.2)));
+}
+$("cards").addEventListener("click", (e) => {
+  const b = e.target.closest("[data-card]"); if (!b) return;
+  const c = CARDS.find((x) => x.id === b.dataset.card);
+  c.apply(run, run.level);
+  run.picked.push(c.title);
+  run.offer = null;
+  camp();
+});
+
+function camp() {
+  if (!run.enemy) { run.enemy = makeEnemy(run.level, run.lastEmpire); }
+  run.stage = "camp"; store.run = run; persist();
+  show("camp");
+  $("campLevel").textContent = `Battle ${run.level}`;
+  $("campGold").textContent = run.gold;
+  // Scout report on the next enemy
+  const en = run.enemy, E = EMPIRES[en.emp];
+  const total = Object.values(en.army).reduce((a, b) => a + b, 0);
+  $("enemyPanel").style.setProperty("--ec", E.primary);
+  $("enemyPanel").innerHTML = `
+    <div class="head"><div class="banner-flag"></div>
+      <div><div class="eyebrow">Scouts report · ${total} troops${en.scale > 1 ? ` · +${Math.round((en.scale - 1) * 100)}% strength` : ""}</div>
+      <h3>${E.name}</h3><div class="years">${E.years}</div></div></div>
+    <p class="blurb">${E.blurb}</p>
+    <div class="troops">${Object.entries(en.army).map(([k, c]) => `<div class="troop"><canvas data-u="${k}"></canvas><div>${c}× ${UNITS[k].name}<small>${ROLE_LABEL[UNITS[k].role]}</small></div></div>`).join("")}</div>`;
+  // Your army with recruiting
+  const owned = PLAYER_UNITS.filter((k) => run.army[k]);
+  const size = owned.reduce((s, k) => s + run.army[k], 0);
+  $("armyTotal").textContent = `${size} / ${ARMY_CAP} troops`;
+  $("roster").innerHTML = owned.map((k) => {
+    const s = playerStats(run, k), cost = recruitCost(run, k);
+    return `<div class="unit-row"><canvas data-mine="${k}"></canvas>
+      <div style="min-width:0"><div class="name">${UNITS[k].name}</div>
+        <div class="stats">${ROLE_LABEL[UNITS[k].role]} · ${s.hp} HP · ${Math.round(s.atk / s.cd)} dmg/s${s.range ? ` · range ${s.range}` : ""}</div></div>
+      <div class="right"><span class="count">${run.army[k]}</span>
+        <button class="btn small" style="--c: var(--green)" data-recruit="${k}" ${run.gold < cost || size >= ARMY_CAP ? "disabled" : ""}>+1 <span class="coin"></span>${cost}</button></div>
+    </div>`;
+  }).join("");
+  const boosts = [];
+  for (const [k, m] of Object.entries(run.mods)) {
+    const who = k === "all" ? "All" : UNITS[k].name + "s";
+    if (m.hp) boosts.push(`${who} +${Math.round(m.hp * 100)}% HP`);
+    if (m.atk) boosts.push(`${who} +${Math.round(m.atk * 100)}% attack`);
+    if (m.rate) boosts.push(`${who} +${Math.round(m.rate * 100)}% speed`);
+    if (m.range) boosts.push(`${who} +${m.range} range`);
+  }
+  if (run.regen) boosts.push(`Heal ${run.regen}/s`);
+  if (run.tax) boosts.push(`+${run.tax} gold per win`);
+  if (run.discount) boosts.push(`Recruits −${Math.round(run.discount * 100)}%`);
+  $("boostTitle").hidden = !boosts.length;
+  $("boosts").innerHTML = boosts.map((b) => `<span class="chip">${b}</span>`).join("");
+  requestAnimationFrame(() => {
+    document.querySelectorAll("[data-u]").forEach((cv) => paintIcon(cv, cv.dataset.u, E));
+    document.querySelectorAll("[data-mine]").forEach((cv) => paintIcon(cv, cv.dataset.mine, PLAYER));
+  });
+}
+$("roster").addEventListener("click", (e) => {
+  const b = e.target.closest("[data-recruit]"); if (!b || b.disabled) return;
+  const k = b.dataset.recruit, cost = recruitCost(run, k);
+  if (run.gold < cost || armySize(run) >= ARMY_CAP) return;
+  run.gold -= cost; run.army[k]++; run.recruited[k] = (run.recruited[k] || 0) + 1;
+  const scroll = $("camp").scrollTop; camp(); $("camp").scrollTop = scroll;
+});
+$("marchBtn").onclick = () => startBattle();
+
+const field = $("field"), fg = field.getContext("2d");
+function startBattle() {
+  run.stage = "battle"; persist();
+  show("battle");
+  const E = EMPIRES[run.enemy.emp];
+  $("hudTitle").textContent = `Your Banner vs ${E.short}`;
+  $("tug").style.setProperty("--ec", E.primary);
+  const r = field.getBoundingClientRect(), d = Math.min(window.devicePixelRatio || 1, 2);
+  field.width = r.width * d; field.height = r.height * d;
+  battle = new Battle(run, r.width, r.height);
+  battle.dpr = d;
+  let last = performance.now();
+  cancelAnimationFrame(raf);
+  const loop = (now) => {
+    const dt = Math.min(0.05, (now - last) / 1000); last = now;
+    for (let i = 0; i < speed; i++) battle.tick(dt);
+    fg.setTransform(battle.dpr, 0, 0, battle.dpr, 0, 0);
+    battle.draw(fg);
+    const a = battle.alive(0), b = battle.alive(1), ha = battle.sideHp(0), hb = battle.sideHp(1);
+    $("hudMine").textContent = `You: ${a}`; $("hudTheirs").textContent = `${E.short}: ${b}`;
+    $("tugFill").style.width = (100 * ha / Math.max(1, ha + hb)) + "%";
+    if (battle.over && battle.endT > 1.2) return finishBattle(battle.winner === 0, a);
+    raf = requestAnimationFrame(loop);
+  };
+  raf = requestAnimationFrame(loop);
+}
+$("speedBtn").onclick = () => { speed = speed === 1 ? 2 : speed === 2 ? 3 : 1; $("speedBtn").textContent = speed + "×"; };
+
+function finishBattle(won, survivors) {
+  const E = EMPIRES[run.enemy.emp];
+  show("battle", "result");
+  if (won) {
+    const reward = victoryGold(run);
+    run.gold += reward;
+    const beaten = run.level;
+    run.lastEmpire = run.enemy.emp; run.enemy = null; run.level++; run.offer = null;
+    store.best = Math.max(store.best, beaten);
+    run.stage = "draft"; store.run = run; persist();
+    $("resultPanel").innerHTML = `
+      <div class="eyebrow">Battle ${beaten}</div>
+      <h2 style="color: var(--green)">Victory!</h2>
+      <p>The ${E.name} is defeated. ${survivors} of your troops still stand.</p>
+      <div class="gold"><span class="coin"></span>+${reward} gold</div>
+      <button class="btn" style="--c: var(--blue)" id="spoilsBtn">CLAIM SPOILS</button>`;
+    $("spoilsBtn").onclick = () => { $("result").hidden = true; startDraft(false); };
+  } else {
+    const wins = run.level - 1;
+    store.best = Math.max(store.best, wins);
+    store.run = null; persist();
+    $("resultPanel").innerHTML = `
+      <div class="eyebrow">Battle ${run.level}</div>
+      <h2 style="color: var(--red)">Defeat</h2>
+      <p>Your banner fell to the ${E.name} after ${wins} ${wins === 1 ? "victory" : "victories"}.</p>
+      <p style="color: var(--muted)">Best campaign: ${store.best} ${store.best === 1 ? "victory" : "victories"}</p>
+      <button class="btn" id="againBtn">NEW CAMPAIGN</button>
+      <button class="btn ghost small" id="homeBtn">Title screen</button>`;
+    $("againBtn").onclick = () => { run = newRun(); store.run = run; startDraft(true); };
+    $("homeBtn").onclick = () => title();
+  }
+}
+
+$("continueBtn").onclick = () => {
+  run = store.run;
+  if (run.stage === "draft") startDraft(run.level === 1 && !run.picked.length);
+  else camp();   // a battle in progress restarts from camp
+};
+$("newBtn").onclick = () => {
+  if (store.run && $("confirmNew").hidden) { $("confirmNew").hidden = false; return; }
+  run = newRun(); store.run = run; persist(); startDraft(true);
+};
+$("confirmNew").onclick = () => { run = newRun(); store.run = run; persist(); startDraft(true); };
+window.addEventListener("resize", () => { if (!$("title").hidden) drawTitleArt(); });
+if (document.fonts && document.fonts.ready) document.fonts.ready.then(() => { if (!$("title").hidden) drawTitleArt(); });
+
+title();
+</script>
