@@ -104,13 +104,13 @@ canvas { image-rendering: crisp-edges; image-rendering: pixelated; }
 .enemy .blurb { margin: 0; font: 600 14px/1.35 var(--body); }
 .troops { display: flex; flex-wrap: wrap; gap: 8px; }
 .troop { display: flex; align-items: center; gap: 6px; background: rgba(255,255,255,0.55); border: 2px solid var(--ink); border-radius: 0; padding: 3px 9px 3px 3px; font: 800 14px/1.1 var(--body); }
-.troop canvas { width: 36px; height: 36px; }
+.troop canvas { width: 44px; height: 44px; }
 .troop small { display: block; font-weight: 600; font-size: 11px; color: var(--muted); }
 .section-title { display: flex; justify-content: space-between; align-items: baseline; }
 .section-title h3 { font-size: 20px; }
 .roster { display: flex; flex-direction: column; gap: 8px; }
-.unit-row { display: grid; grid-template-columns: 44px 1fr auto; gap: 10px; align-items: center; background: #fbf3dc; border: 2px solid var(--ink); border-radius: 0; padding: 6px 8px; }
-.unit-row canvas { width: 44px; height: 44px; }
+.unit-row { display: grid; grid-template-columns: 48px 1fr auto; gap: 10px; align-items: center; background: #fbf3dc; border: 2px solid var(--ink); border-radius: 0; padding: 6px 8px; }
+.unit-row canvas { width: 48px; height: 48px; }
 .unit-row .name { font: 800 16px/1.1 var(--body); }
 .unit-row .stats { font: 600 12.5px/1.3 var(--body); color: var(--muted); font-variant-numeric: tabular-nums; }
 .unit-row .count { font: 900 20px/1 var(--display); margin-right: 6px; }
@@ -338,228 +338,280 @@ function drawCards(r) {
   return out.map((c) => c.id);
 }
 
-// =====================================================================  ART (pixel-art 2D soldiers)
-// Everything is drawn at half resolution, edges are snapped to fully on/off, and the canvas is
-// scaled up with nearest-neighbor, so the soldiers come out as crisp pixel art.
-const INK = "#2b2118";
-const PX = 2;                 // screen pixels per art pixel
-let SHADOW = null;            // solid shadow color under troops (null = none)
-function crisp(ctx, w, h, cut = 90) {
-  const img = ctx.getImageData(0, 0, w, h), d = img.data;
-  for (let i = 3; i < d.length; i += 4) d[i] = d[i] < cut ? 0 : 255;
-  ctx.putImageData(img, 0, 0);
-}
-function pixelCanvas(canvas) {
-  const r = canvas.getBoundingClientRect();
-  canvas.width = Math.max(1, Math.round(r.width / PX)); canvas.height = Math.max(1, Math.round(r.height / PX));
-  const g = canvas.getContext("2d", { willReadFrequently: true });
-  g.setTransform(1 / PX, 0, 0, 1 / PX, 0, 0);
-  return [g, r.width, r.height];
-}
-function rr(g, x, y, w, h, r) { g.beginPath(); g.roundRect(x, y, w, h, r); }
-function circ(g, x, y, r) { g.beginPath(); g.arc(x, y, r, 0, Math.PI * 2); }
-function shade(hex, amt) {   // lighten (amt > 0) or darken (amt < 0) a #rrggbb color
+// =====================================================================  PIXEL SPRITES
+// Troops are hand-authored pixel grids (one character = one pixel, colors in palette()),
+// composed from parts: body, head, shield, weapon and mount. Each empire recolors the same parts.
+// Sprites face right; the renderer mirrors them when a troop faces left.
+const INK = "#1d1612";
+const PX = 2;                       // screen pixels per art pixel on the battlefield
+function shade(hex, amt) {          // lighten (amt > 0) or darken (amt < 0) a #rrggbb color
   const n = parseInt(hex.slice(1), 16);
   const f = (c) => Math.max(0, Math.min(255, Math.round(amt > 0 ? c + (255 - c) * amt : c * (1 + amt))));
-  return `rgb(${f(n >> 16)},${f((n >> 8) & 255)},${f(n & 255)})`;
+  return "#" + [f(n >> 16), f((n >> 8) & 255), f(n & 255)].map((v) => v.toString(16).padStart(2, "0")).join("");
+}
+function palette(E, U) {
+  return {
+    k: INK, P: E.primary, p: shade(E.primary, -0.32), S: E.secondary, s: shade(E.secondary, -0.3),
+    F: E.skin, f: shade(E.skin, -0.22), M: "#c9c2b6", m: "#8d8984", W: "#f4f1ea", B: "#8a5a2b", b: "#5e3b1c",
+    Y: "#e8c04a", R: "#c0262b", G: "#2f9e6b", D: "#3b2f2a",
+    H: U && U.barded ? "#9a9ca3" : "#8a5630", h: U && U.barded ? "#6f7178" : "#5e3a1e",
+    E: "#9a9ca3", e: "#6f7178",
+  };
 }
 
-// Draws one troop with its feet at (0,0). t = animation clock, flash = hit flash 0..1, swing = attack swing 0..1.
-function drawTroop(g, key, E, t, flash, swing) {
-  const U = UNITS[key];
-  g.lineJoin = "round"; g.lineCap = "round";
-  // shadow
-  if (SHADOW) {
-    g.fillStyle = SHADOW; g.beginPath();
-    g.ellipse(0, 1, U.mount === "elephant" ? 22 : U.mount ? 15 : 8, 3.5, 0, 0, Math.PI * 2); g.fill();
-  }
-  switch (U.mount) {
-    case "horse": drawHorse(g, E, t, U.barded); drawPerson(g, U, E, t, flash, swing, -10, true); break;
-    case "chariot": drawChariot(g, E, t); drawPerson(g, U, E, t, flash, swing, -9, true, -4); break;
-    case "elephant": drawElephant(g, E, t, flash); drawPerson(g, U, E, t, flash, swing, -33, true, -4); break;
-    case "siege": drawSiege(g, U, E, t, swing, flash); break;
-    default: drawPerson(g, U, E, t, flash, swing, 0, false);
-  }
-}
-function tint(color, flash) { return flash > 0 ? shade(color.startsWith("#") ? color : "#888888", Math.min(0.85, flash)) : color; }
+const BODY = [
+  "..kkkkkkkk...",
+  ".kPPPPPPPPk..",
+  ".kpPPPPPPPkk.",
+  ".kpPPPPPPPkFk",
+  ".kpSSSSSSSkk.",
+  ".kpPPPPPPPk..",
+  "..kkkkkkkk...",
+  "..kDk..kDk...",
+  "..kDk..kDk...",
+  "..kkk..kkk...",
+];
+const RIDER = [...BODY.slice(0, 6), "..kkkkkkkk..."];
+const HEADS = {
+  player: ["....kkk...", "...kPPPk..", "..kkkkkkk.", "..kmMMMMk.", "..kmMkkkkk", "..kmMMMWMk", "..kmMMMMMk", "...kkkkkk."],
+  roman:  ["..kkkkk...", ".kRRRRRk..", "..kkkkkkk.", "..kSSSSSk.", "..ksSkFFFk", "..ksSkFkFk", "..ksSFFFFk", "...kkkkkk."],
+  mongol: [".....k....", "....kSk...", "...kSSSk..", "..kbbbbbk.", "..kbFFFFk.", "..kFFFkFk.", "..kFFFFFk.", "...kkkkk.."],
+  egypt:  ["...kkkkk..", "..kSYSYSk.", ".kSYSYSYSk", ".kSYkFFFFk", ".kSYkFkFk.", ".kSYkFFFk.", ".kSYkkkk..", ".kkk......"],
+  persia: ["...kkkk...", "..kPPPPk..", "..kPPPPk..", "..kSSSSk..", "..kFFFFFk.", "..kFFFkFk.", "..kfFFFFk.", "...kkkkk.."],
+  jaguar: ["..k...k...", ".kYk.kYk..", ".kYYYYYYk.", ".kYkYYkYYk", ".kYkFFFFk.", ".kYkFkFFk.", ".kYYFFFFk.", "..kkkkkkk."],
+  eagle:  ["..kkkkk...", ".kWWWWWk..", "kWWWWWWWk.", "kWWWkYYYYk", "kWkFFFkkk.", "kWkFkFFk..", ".kkFFFFk..", "..kkkkk..."],
+  aztec:  ["..kGk.kYk.", "..kGkkkYk.", "..kkkkkkk.", "..kSSSSSk.", "..kFFFkFk.", "..kFFFFFk.", "..kfFFFFk.", "...kkkkk.."],
+};
+const SHIELDS = {
+  kite:   ["kkkkkkk", "kpPSPPk", "kpSSSPk", "kpPSPPk", "kpPSPPk", ".kpSPk.", "..kPk..", "...k..."],
+  round:  [".kkkk.", "kSSSSk", "kSkkSk", "kSkkSk", "kSSSSk", ".kkkk."],
+  scutum: ["kkkkkk", "kPPPPk", "kPSSPk", "kPSSPk", "kSkkSk", "kPSSPk", "kPSSPk", "kPPPPk", "kkkkkk"],
+  tall:   [".kkkk.", "kSSSSk", "kSYYSk", "kSSSSk", "kSYYSk", "kSSSSk", "kSYYSk", "kSSSSk", "kkkkkk"],
+  wicker: [".kkkk.", "kBbBbk", "kbBbBk", "kBbBbk", "kbBbBk", "kBbBbk", "kbBbBk", ".kkkk."],
+};
+// px/py = grip pixel (rotation pivot), rest = resting angle in radians.
+const WEAPONS = {
+  sword:   { rows: [".....kk", "....kWk", "...kWk.", "..kWk..", "kkMk...", ".kRk...", "..k...."], px: 2, py: 5, rest: 0 },
+  spear:   { rows: [".k.", "kMk", "kMk", "kMk", ".k.", "kBk", "kBk", "kBk", "kBk", "kBk", "kBk", "kBk", "kBk", "kBk", "kBk", ".k."], px: 1, py: 11, rest: 0.15 },
+  lance:   { rows: [".k.", "kMk", "kMk", "kMk", ".k.", "kBk", "kBk", "kBk", "kBk", "kBk", "kBk", "kBk", "kBk", "kBk", "kBk", ".k."], px: 1, py: 11, rest: 1.0 },
+  bow:     { rows: ["kk...", "kBk..", "kWBk.", "kW.Bk", "kW.Bk", "kW.Bk", "kW.Bk", "kWBk.", "kBk..", "kk..."], px: 1, py: 5, rest: 0 },
+  khopesh: { rows: ["..kkkk.", ".kYYYYk", "..kkkYk", "....kYk", "...kYk.", "..kYk..", "kkbk...", ".kbk..."], px: 2, py: 6, rest: 0 },
+  club:    { rows: [".kkk.", "kkBkk", "kBBBk", "kkBkk", "kBBBk", "kkBkk", ".kbk.", ".kbk.", ".kkk."], px: 2, py: 7, rest: 0.3 },
+  javelin: { rows: [".k.", "kkk", ".k.", "kBk", "kBk", "kBk", "kBk", "kBk", "kBk", "kBk", "kBk", ".k."], px: 1, py: 8, rest: -0.2 },
+};
+const HORSE_A = [
+  "..............kk..", ".............kHHk.", "............kHHkHk", "...........kHHHHHk", ".kk.......kHHHkkk.",
+  "kHkkkkkkkkHHHk....", "khHHHPPPPHHHHk....", ".kHHHPPPPHHHHk....", ".khHHPPPPHHHk.....", "..khhhhhhhhhk.....",
+  "..khk....khk......", "..khk....khk......", "..kkk....kkk......",
+];
+const HORSE_B = [...HORSE_A.slice(0, 10), ".khk......khk.....", "khk........khk....", "kkk........kkk...."];
+const CART = ["kkkkkkk...", "kSSSSSk...", "kSsSsSkkkk", "kSSSSSk...", "kkkkkkk...", ".kkkkk....", "kBbBbBk...", "kbkBkbk...", "kBbBbBk...", ".kkkkk...."];
+const ELEPHANT = [
+  "....kkkkkkkk............", "....kPSPSPSk............", "...kkkkkkkkkk...kkkkk...", "..kEEEEEEEEEEkkkEEEEEk..",
+  ".kEEEEEEEEEEEEEkEEEEEEk.", "kEEEEEEEEEEEEEEkEEEkEEk.", "kEEEEEEEEEEEEEEkEEEEEEEk", "keEEEEEEEEEEEEEkkEEEWWWk",
+  "keEEEEEEEEEEEEEEkkEEkkkk", "keeEEEEEEEEEEEEEEkkEk...", ".keeeeeeeeeeeeeek.kEk...", ".keek.keek.keek...kEk...",
+  ".keek.keek.keek...kEk...", ".keek.keek.keek....kk...", ".kkkk.kkkk.kkkk.........",
+];
+const ELEPHANT_B = [...ELEPHANT.slice(0, 11), "..keek.keek.keek..kEk...", "..keek.keek.keek..kEk...", "..keek.keek.keek...kk...", "..kkkk.kkkk.kkkk........"];
+const SIEGE_BASE = [
+  "........kk........", ".......kBBk.......", "......kBkkBk......", ".....kBk..kBk.....", "....kBk....kBk....",
+  "kkkkkkkkkkkkkkkkkk", "kBBBBBBBBBBBBBBBBk", "kbbbbbbbbbbbbbbbbk", "kkkkkkkkkkkkkkkkkk",
+  ".kkk........kkk...", "kbBbk......kbBbk..", "kBkBk......kBkBk..", "kbBbk......kbBbk..", ".kkk........kkk...",
+];
+const CAT_ARM = ["kkk............", "kmkkkkkkkkkkkkk", "kkkBBBBBBBBBBBk", "..kkkkkkkkkkkkk"];
+const BALLISTA_TOP = [".........k....", "........kBk...", ".........kBk..", "..kkkkkkkkkkkk", "..kbBBBBBBBMMk", "..kkkkkkkkkkkk", ".........kBk..", "........kBk...", ".........k...."];
+const ICON_GRIDS = {
+  banner: ["kk..........", "kBkkkkkkkkk.", "kBkPPPPPPPk.", "kBkPPYYPPPk.", "kBkPYYYYPPk.", "kBkPPYYPPPk.", "kBkPPPPPPPk.", "kBkPPPkPPPk.", "kBkPPk.kPPk.", "kBkkk...kkk.", "kBk.........", "kBk.........", "kBk.........", "kkk........."],
+  coins: ["...kkkkk....", "..kYYYYYk...", "..kkkkkkk...", "..kYYYYYk...", "kkkkkkkkkkk.", "kYYYYkYYYYk.", "kkkkkkkkkkk.", "kYYYYkYYYYk.", "kkkkkkkkkkk."],
+};
+const SHOT_GRIDS = { arrow: ["bbbbbM"], javelin: ["bbbbbbbk"], bolt: ["kbbbbbbMM", "kbbbbbbMM"], rock: [".kk.", "kmmk", "kmmk", ".kk."] };
 
-function drawPerson(g, U, E, t, flash, swing, y0, riding, x0 = 0) {
-  g.save(); g.translate(x0, y0);
-  if (!riding) {   // legs
-    const s = Math.sin(t * 10) * 2.2;
-    g.strokeStyle = INK; g.lineWidth = 2.6; g.beginPath();
-    g.moveTo(-2.5, -8); g.lineTo(-3 + s, 0); g.moveTo(2.5, -8); g.lineTo(3 - s, 0); g.stroke();
-  }
-  // shield behind the body
-  if (U.shield === "scutum" || U.shield === "tall" || U.shield === "wicker") {
-    const tall = U.shield === "scutum" ? [-11, -20, 8, 16] : [-11, -21, 7, 16];
-    rr(g, ...tall, 3);
-    g.fillStyle = tint(U.shield === "wicker" ? "#c9a46a" : U.shield === "scutum" ? E.primary : E.secondary, flash); g.fill();
-    g.strokeStyle = INK; g.lineWidth = 1.6; g.stroke();
-    if (U.shield === "scutum") { circ(g, -7, -12, 1.8); g.fillStyle = E.secondary; g.fill(); }
-  }
-  // tunic
-  rr(g, -6, -18, 12, 11, 3); g.fillStyle = tint(E.primary, flash); g.fill(); g.strokeStyle = INK; g.lineWidth = 1.6; g.stroke();
-  g.fillStyle = E.secondary; g.fillRect(-6, -10, 12, 2);
-  if (U.look === "jaguar") { g.fillStyle = INK; for (const [x, y] of [[-3, -15], [2, -13], [-1, -12]]) { circ(g, x, y, 0.9); g.fill(); } }
-  if (U.shield === "round") { circ(g, -7, -12, 5); g.fillStyle = tint(E.secondary, flash); g.fill(); g.strokeStyle = INK; g.stroke(); circ(g, -7, -12, 1.5); g.fillStyle = INK; g.fill(); }
-  // head + headgear
-  circ(g, 0, -22, 4.6); g.fillStyle = E.skin; g.fill(); g.strokeStyle = INK; g.lineWidth = 1.4; g.stroke();
-  drawHelm(g, E.helm, E, U);
-  // weapon (swings on attack)
-  g.save(); g.translate(5, -13); g.rotate(-swing * 1.1);
-  drawWeapon(g, U.weapon);
-  g.restore();
-  g.restore();
-}
-function drawHelm(g, helm, E, U) {
-  g.strokeStyle = INK; g.lineWidth = 1.3;
-  switch (helm) {
-    case "player":
-      g.beginPath(); g.arc(0, -23, 5, Math.PI, 0); g.closePath(); g.fillStyle = "#9aa3ad"; g.fill(); g.stroke();
-      g.fillRect(-6, -23.5, 12, 1.6);
-      g.beginPath(); g.moveTo(0, -28); g.quadraticCurveTo(5, -33, 8, -29); g.strokeStyle = E.primary; g.lineWidth = 2.4; g.stroke(); break;
-    case "roman":
-      g.beginPath(); g.arc(0, -23, 5, Math.PI, 0); g.closePath(); g.fillStyle = "#d4a93c"; g.fill(); g.stroke();
-      g.beginPath(); g.arc(0, -27, 5, Math.PI * 1.1, Math.PI * 1.9); g.strokeStyle = "#c0262b"; g.lineWidth = 3; g.stroke(); break;
-    case "mongol":
-      g.beginPath(); g.moveTo(-5, -23); g.lineTo(0, -31); g.lineTo(5, -23); g.closePath(); g.fillStyle = E.secondary; g.fill(); g.stroke();
-      rr(g, -6, -25, 12, 3, 1.5); g.fillStyle = "#7a5634"; g.fill(); g.stroke(); break;
-    case "egypt":
-      g.beginPath(); g.moveTo(-5, -26); g.quadraticCurveTo(0, -30, 5, -26); g.lineTo(6.5, -16); g.lineTo(3.5, -18); g.lineTo(-3.5, -18); g.lineTo(-6.5, -16); g.closePath();
-      g.fillStyle = "#2a6fb0"; g.fill(); g.stroke();
-      g.strokeStyle = "#f0d36a"; g.lineWidth = 1; g.beginPath(); g.moveTo(-5.5, -22); g.lineTo(-5, -18); g.moveTo(5.5, -22); g.lineTo(5, -18); g.stroke();
-      circ(g, 0, -22, 3.2); g.fillStyle = E.skin; g.fill(); break;
-    case "persia":
-      rr(g, -4.5, -33, 9, 9, 4); g.fillStyle = E.primary; g.fill(); g.strokeStyle = INK; g.stroke();
-      g.fillStyle = E.secondary; g.fillRect(-5, -26, 10, 2); break;
-    case "aztec":
-      if (U.look === "eagle") {
-        g.beginPath(); g.arc(0, -24, 5.5, Math.PI, 0); g.closePath(); g.fillStyle = "#f2f0e6"; g.fill(); g.stroke();
-        g.beginPath(); g.moveTo(3, -24); g.lineTo(9, -21); g.lineTo(3, -21); g.closePath(); g.fillStyle = "#e2b13c"; g.fill(); g.stroke();
-      } else {
-        for (let i = -2; i <= 2; i++) {
-          g.save(); g.translate(0, -25); g.rotate(i * 0.35);
-          g.beginPath(); g.ellipse(0, -6, 1.8, 5.5, 0, 0, Math.PI * 2); g.fillStyle = i % 2 ? "#2f9e6b" : "#e2b13c"; g.fill(); g.lineWidth = 1; g.stroke();
-          g.restore();
-        }
-        if (U.look === "jaguar") { g.beginPath(); g.arc(0, -23, 5.2, Math.PI, 0); g.closePath(); g.fillStyle = "#e2b13c"; g.fill(); g.stroke(); circ(g, -2, -25, 0.8); circ(g, 2, -26, 0.8); g.fillStyle = INK; g.fill(); }
-      }
-      break;
-  }
-}
-function drawWeapon(g, w) {
-  g.strokeStyle = INK; g.lineWidth = 1.2;
-  switch (w) {
-    case "sword":
-      g.strokeStyle = "#cfd5db"; g.lineWidth = 2.4; g.beginPath(); g.moveTo(0, 0); g.lineTo(5, -11); g.stroke();
-      g.strokeStyle = INK; g.lineWidth = 1.8; g.beginPath(); g.moveTo(-2, -1); g.lineTo(3, 1.5); g.stroke(); break;
-    case "spear": case "lance": {
-      const len = w === "lance" ? 26 : 24;
-      g.strokeStyle = "#7a5634"; g.lineWidth = 2; g.beginPath(); g.moveTo(0, 8); g.lineTo(w === "lance" ? 8 : 1, -len + 8); g.stroke();
-      g.save(); g.translate(w === "lance" ? 8 : 1, -len + 8); g.rotate(w === "lance" ? 0.32 : 0.04);
-      g.beginPath(); g.moveTo(-2, 0); g.lineTo(0, -5); g.lineTo(2, 0); g.closePath(); g.fillStyle = "#cfd5db"; g.fill(); g.strokeStyle = INK; g.lineWidth = 1; g.stroke(); g.restore(); break;
+function makeCanvas(w, h) { const c = document.createElement("canvas"); c.width = w; c.height = h; return c; }
+function gridW(rows) { return Math.max(...rows.map((r) => r.length)); }
+function paint(g, rows, ox, oy, pal) {
+  rows.forEach((row, y) => {
+    for (let x = 0; x < row.length; x++) {
+      const col = pal[row[x]];
+      if (col) { g.fillStyle = col; g.fillRect(ox + x, oy + y, 1, 1); }
     }
-    case "bow":
-      g.strokeStyle = "#7a4a26"; g.lineWidth = 2; g.beginPath(); g.arc(1, -2, 8, -1.2, 1.2); g.stroke();
-      g.strokeStyle = "#efe6cf"; g.lineWidth = 0.8; g.beginPath(); g.moveTo(1 + 8 * Math.cos(-1.2), -2 + 8 * Math.sin(-1.2)); g.lineTo(1 + 8 * Math.cos(1.2), -2 + 8 * Math.sin(1.2)); g.stroke(); break;
-    case "khopesh":
-      g.strokeStyle = "#d9b45a"; g.lineWidth = 2.4; g.beginPath(); g.moveTo(0, 0); g.lineTo(2, -6); g.quadraticCurveTo(4, -12, 9, -11); g.stroke(); break;
-    case "club":
-      g.save(); g.rotate(0.3); rr(g, -1.5, -14, 4, 14, 1.5); g.fillStyle = "#8a5a2b"; g.fill(); g.strokeStyle = INK; g.lineWidth = 1; g.stroke();
-      g.fillStyle = "#1c1c22"; for (let y = -12; y < -2; y += 3) { g.fillRect(-2.6, y, 1.3, 1.6); g.fillRect(2.4, y, 1.3, 1.6); } g.restore(); break;
-    case "javelin":
-      g.strokeStyle = "#7a5634"; g.lineWidth = 1.6; g.beginPath(); g.moveTo(-2, 4); g.lineTo(6, -16); g.stroke();
-      g.fillStyle = "#1c1c22"; g.beginPath(); g.moveTo(5, -15); g.lineTo(7.5, -20); g.lineTo(7.5, -14.5); g.fill(); break;
+  });
+}
+function gridImg(rows, pal) { const c = makeCanvas(gridW(rows), rows.length); paint(c.getContext("2d"), rows, 0, 0, pal); return c; }
+function whiteOf(c) {
+  const w = makeCanvas(c.width, c.height), g = w.getContext("2d");
+  g.drawImage(c, 0, 0); g.globalCompositeOperation = "source-in"; g.fillStyle = "#fff"; g.fillRect(0, 0, c.width, c.height);
+  return w;
+}
+const SHOT_IMGS = {};
+for (const [k, rows] of Object.entries(SHOT_GRIDS)) SHOT_IMGS[k] = gridImg(rows, palette(PLAYER));
+
+const SPRITE_CACHE = {};
+// A built sprite: frames (canvases), feet anchor (ax, ay), and optional weapon / catapult arm
+// that the renderer rotates separately so attacks can swing them.
+function getSprite(key, E) {
+  const id = key + "|" + E.name;
+  if (SPRITE_CACHE[id]) return SPRITE_CACHE[id];
+  const U = UNITS[key], pal = palette(E, U), head = HEADS[U.look || E.helm];
+  const spr = { frames: [], ax: 0, ay: 0, w: 0, h: 0, hand: null, weapon: null, arm: null };
+  const person = (g, bx, by, torsoOnly, shield) => {
+    paint(g, torsoOnly ? RIDER : BODY, bx, by, pal);
+    paint(g, head, bx + 1, by - 7, pal);
+    if (shield) paint(g, SHIELDS[shield], bx - 2, by + 1, pal);
+  };
+  const frame = (w, h, fn) => { const c = makeCanvas(w, h); fn(c.getContext("2d")); spr.frames.push(c); };
+  switch (U.mount) {
+    case "horse":
+      for (const legs of [HORSE_A, HORSE_B]) frame(19, 20, (g) => { paint(g, legs, 1, 7, pal); person(g, 2, 7, true); });
+      Object.assign(spr, { w: 19, h: 20, ax: 9, ay: 20, hand: { x: 13, y: 10 } }); break;
+    case "chariot":
+      for (const legs of [HORSE_A, HORSE_B]) frame(28, 21, (g) => { paint(g, legs, 10, 8, pal); person(g, 0, 7, true); paint(g, CART, 0, 11, pal); });
+      Object.assign(spr, { w: 28, h: 21, ax: 14, ay: 21, hand: { x: 11, y: 10 } }); break;
+    case "elephant":
+      for (const legs of [ELEPHANT, ELEPHANT_B]) frame(24, 27, (g) => { paint(g, legs, 0, 12, pal); person(g, 2, 7, true); paint(g, legs.slice(0, 2), 0, 12, pal); });
+      Object.assign(spr, { w: 24, h: 27, ax: 12, ay: 27, hand: { x: 13, y: 10 } }); break;
+    case "siege":
+      frame(27, 22, (g) => {
+        person(g, 0, 12, false);
+        if (U.siege === "ballista") { paint(g, SIEGE_BASE.slice(5), 9, 13, pal); paint(g, BALLISTA_TOP, 11, 7, pal); }
+        else paint(g, SIEGE_BASE, 9, 8, pal);
+      });
+      Object.assign(spr, { w: 27, h: 22, ax: 18, ay: 22 });
+      if (U.siege !== "ballista") spr.arm = { img: gridImg(CAT_ARM, pal), x: 18, y: 9, px: 14, py: 2, rest: -0.25 };
+      break;
+    default:
+      frame(17, 20, (g) => person(g, 3, 9, false, U.shield === "round" && E === PLAYER ? "kite" : U.shield));
+      Object.assign(spr, { w: 17, h: 20, ax: 8, ay: 19, hand: { x: 14, y: 12 } });
   }
+  if (U.weapon && U.mount !== "siege") { const W = WEAPONS[U.weapon]; spr.weapon = { img: gridImg(W.rows, pal), px: W.px, py: W.py, rest: W.rest }; }
+  spr.whites = spr.frames.map(whiteOf);
+  return (SPRITE_CACHE[id] = spr);
 }
-function drawHorse(g, E, t, barded) {
-  const s = Math.sin(t * 12) * 3;
-  g.strokeStyle = INK; g.lineWidth = 2.2;
-  g.beginPath(); g.moveTo(-8, -6); g.lineTo(-9 + s, 0); g.moveTo(-4, -6); g.lineTo(-4 - s, 0); g.moveTo(5, -6); g.lineTo(6 + s, 0); g.moveTo(9, -6); g.lineTo(9 - s, 0); g.stroke();
-  g.beginPath(); g.ellipse(0, -9, 12, 5.5, 0, 0, Math.PI * 2); g.fillStyle = barded ? "#8d8f94" : "#7a4a26"; g.fill(); g.lineWidth = 1.6; g.stroke();
-  if (barded) { g.fillStyle = E.primary; g.fillRect(-9, -9, 18, 3); }
-  else { g.fillStyle = E.primary; g.fillRect(-4, -14, 8, 4); }
-  g.beginPath(); g.moveTo(9, -11); g.lineTo(13, -19); g.lineTo(17, -17); g.lineTo(14, -10); g.closePath(); g.fillStyle = barded ? "#8d8f94" : "#7a4a26"; g.fill(); g.stroke();
-  g.beginPath(); g.moveTo(-12, -10); g.quadraticCurveTo(-17, -8, -15, -2); g.strokeStyle = "#3a2414"; g.lineWidth = 2.2; g.stroke();
-}
-function drawChariot(g, E, t) {
-  // horse in front, car with a big wheel behind
-  g.save(); g.translate(10, 0); g.scale(0.85, 0.85); drawHorse(g, E, t, false); g.restore();
-  g.strokeStyle = INK; g.lineWidth = 1.6;
-  rr(g, -12, -16, 12, 9, 2); g.fillStyle = E.secondary; g.fill(); g.stroke();
-  g.strokeStyle = "#7a5634"; g.lineWidth = 2; g.beginPath(); g.moveTo(0, -10); g.lineTo(10, -8); g.stroke();
-  circ(g, -6, -6, 6); g.fillStyle = "#c9a46a"; g.fill(); g.strokeStyle = INK; g.lineWidth = 1.6; g.stroke();
-  g.save(); g.translate(-6, -6); g.rotate(t * 8);
-  g.beginPath(); for (let i = 0; i < 3; i++) { g.moveTo(0, 0); g.lineTo(6 * Math.cos(i * 2.09), 6 * Math.sin(i * 2.09)); } g.lineWidth = 1; g.stroke(); g.restore();
-}
-function drawElephant(g, E, t, flash) {
-  const s = Math.sin(t * 5) * 2;
-  g.fillStyle = "#7d8086"; g.strokeStyle = INK; g.lineWidth = 1.8;
-  for (const [x, ph] of [[-13, 1], [-6, -1], [6, 1], [12, -1]]) { rr(g, x - 3, -10 + ph * s * 0.3, 6, 10, 2); g.fill(); g.stroke(); }
-  g.beginPath(); g.ellipse(0, -17, 20, 12, 0, 0, Math.PI * 2); g.fillStyle = tint("#8d8f94", flash); g.fill(); g.stroke();
-  circ(g, 17, -21, 8); g.fill(); g.stroke();
-  g.beginPath(); g.ellipse(12, -21, 5, 7, 0.2, 0, Math.PI * 2); g.fillStyle = "#7d8086"; g.fill(); g.stroke();
-  g.beginPath(); g.moveTo(23, -19); g.quadraticCurveTo(28, -10 + s, 24, -3); g.lineWidth = 4; g.strokeStyle = "#7d8086"; g.stroke(); g.lineWidth = 1.4; g.strokeStyle = INK;
-  g.beginPath(); g.moveTo(20, -16); g.quadraticCurveTo(26, -14, 27, -18); g.strokeStyle = "#f5efe0"; g.lineWidth = 2.4; g.stroke();
-  rr(g, -9, -34, 18, 8, 2); g.fillStyle = E.primary; g.fill(); g.strokeStyle = INK; g.lineWidth = 1.6; g.stroke();
-  g.fillStyle = E.secondary; g.fillRect(-9, -28, 18, 2);
-}
-function drawSiege(g, U, E, t, swing, flash) {
-  g.strokeStyle = INK; g.lineWidth = 1.6;
-  rr(g, -15, -9, 30, 5, 2); g.fillStyle = tint("#8a5a2b", flash); g.fill(); g.stroke();
-  for (const x of [-10, 10]) { circ(g, x, -3, 4); g.fillStyle = "#6b4423"; g.fill(); g.stroke(); }
-  if (U.siege === "ballista") {
-    rr(g, -3, -20, 6, 12, 1); g.fillStyle = "#8a5a2b"; g.fill(); g.stroke();
-    g.beginPath(); g.moveTo(-12, -16); g.quadraticCurveTo(0, -24 + swing * 4, 12, -16); g.strokeStyle = "#5a3a1c"; g.lineWidth = 2.4; g.stroke();
-    if (swing < 0.3) { g.strokeStyle = "#cfd5db"; g.lineWidth = 1.6; g.beginPath(); g.moveTo(0, -12); g.lineTo(0, -26); g.stroke(); }
-  } else {
-    g.beginPath(); g.moveTo(-6, -9); g.lineTo(0, -20); g.lineTo(6, -9); g.strokeStyle = INK; g.lineWidth = 2.2; g.stroke();
-    const a = -0.3 - swing * 1.6;
-    g.save(); g.translate(0, -16); g.rotate(a);
-    g.strokeStyle = "#7a5634"; g.lineWidth = 2.6; g.beginPath(); g.moveTo(8, 0); g.lineTo(-14, 0); g.stroke();
-    circ(g, -15, -1, 3); g.fillStyle = swing < 0.3 ? "#8a8a8a" : "#6b4423"; g.fill(); g.strokeStyle = INK; g.lineWidth = 1; g.stroke();
-    g.restore();
+// Draw a sprite with a pose from the animation layer. x, y = feet position in art pixels.
+function drawSprite(g, spr, x, y, pose, facing, frameIdx = 0) {
+  const img = spr.frames[frameIdx % spr.frames.length];
+  g.save();
+  g.translate(Math.round(x + pose.ox), Math.round(y + pose.oy));
+  if (pose.rot) g.rotate(pose.rot);
+  g.scale(facing * pose.sx, pose.sy);
+  g.drawImage(img, -spr.ax, -spr.ay);
+  if (spr.arm) {
+    g.save(); g.translate(spr.arm.x - spr.ax, spr.arm.y - spr.ay); g.rotate(spr.arm.rest + pose.armRot);
+    g.drawImage(spr.arm.img, -spr.arm.px, -spr.arm.py); g.restore();
   }
-  // crew member
-  g.save(); g.translate(-19, 0); g.scale(0.8, 0.8); drawPerson(g, { weapon: "none" }, E, t * 0.3, flash, 0, 0, false); g.restore();
-}
-function drawBannerIcon(g, color) {
-  g.strokeStyle = INK; g.lineWidth = 2;
-  g.beginPath(); g.moveTo(-12, 16); g.lineTo(-12, -22); g.strokeStyle = "#6b4423"; g.lineWidth = 3; g.stroke();
-  g.beginPath(); g.moveTo(-11, -20); g.lineTo(14, -20); g.lineTo(14, 4); g.lineTo(1, -2); g.lineTo(-11, 4); g.closePath();
-  g.fillStyle = color; g.fill(); g.strokeStyle = INK; g.lineWidth = 2; g.stroke();
-  g.beginPath(); g.moveTo(2, -16); g.lineTo(4.5, -10); g.lineTo(10, -10); g.lineTo(5.5, -6); g.lineTo(7, 0); g.lineTo(2, -3.5); g.lineTo(-3, 0); g.lineTo(-1.5, -6); g.lineTo(-6, -10); g.lineTo(-0.5, -10); g.closePath();
-  g.fillStyle = "#e2b43a"; g.fill(); g.lineWidth = 1; g.stroke();
-}
-function drawCoinsIcon(g) {
-  for (const [x, y] of [[-8, 8], [6, 8], [-1, 2], [-1, -4], [-1, -10]]) {
-    g.beginPath(); g.ellipse(x, y, 10, 4, 0, 0, Math.PI * 2); g.fillStyle = "#e3b23a"; g.fill(); g.strokeStyle = INK; g.lineWidth = 1.6; g.stroke();
+  if (spr.weapon) {
+    g.save(); g.translate(spr.hand.x - spr.ax, spr.hand.y - spr.ay); g.rotate(spr.weapon.rest + pose.weaponRot);
+    g.drawImage(spr.weapon.img, -spr.weapon.px, -spr.weapon.py); g.restore();
   }
+  if (pose.flash > 0.35) { g.globalAlpha = Math.min(1, pose.flash); g.drawImage(spr.whites[frameIdx % spr.whites.length], -spr.ax, -spr.ay); }
+  g.restore();
 }
-// Paint a troop (or icon) centered into a small canvas element.
-function paintIcon(canvas, what, E, zoom = 1) {
-  const [g, w, h] = pixelCanvas(canvas);
-  const s = (w / 44) * zoom;
-  g.translate(w / 2, h * 0.5); g.scale(s, s);
-  SHADOW = null;
-  if (what === "banner") drawBannerIcon(g, PLAYER.primary);
-  else if (what === "coins") drawCoinsIcon(g);
-  else {
-    const U = UNITS[what];
-    const big = U.mount === "elephant" ? 0.6 : U.mount ? 0.85 : 1.15;
-    g.scale(big, big);
-    g.translate(U.mount === "elephant" ? -4 : 0, U.mount === "elephant" ? 22 : U.mount ? 15 : 14);
-    drawTroop(g, what, E, 0.3, 0, 0);
-  }
-  crisp(g, canvas.width, canvas.height);
+function drawIconGrid(canvas, rows) {
+  const r = canvas.getBoundingClientRect(), w = gridW(rows), h = rows.length;
+  const s = Math.max(1, Math.floor(Math.min(r.width / (w + 2), r.height / (h + 2))));
+  canvas.width = Math.round(r.width / s); canvas.height = Math.round(r.height / s);
+  const g = canvas.getContext("2d");
+  paint(g, rows, Math.floor((canvas.width - w) / 2), Math.floor((canvas.height - h) / 2), palette(PLAYER));
 }
+// Static troop portrait for cards and the camp, at a whole-number pixel scale.
+function paintIcon(canvas, what, E) {
+  if (ICON_GRIDS[what]) return drawIconGrid(canvas, ICON_GRIDS[what]);
+  const spr = getSprite(what, E), r = canvas.getBoundingClientRect();
+  const fullW = spr.w + 4, fullH = spr.h + 2;
+  const s = Math.max(1, Math.floor(Math.min(r.width / fullW, r.height / fullH)));
+  canvas.width = Math.round(r.width / s); canvas.height = Math.round(r.height / s);
+  const g = canvas.getContext("2d"); g.imageSmoothingEnabled = false;
+  drawSprite(g, spr, Math.round(canvas.width / 2 - spr.w / 2 + spr.ax - 2), Math.round(canvas.height / 2 + spr.h / 2), REST_POSE, 1);
+}
+
+// =====================================================================  ANIMATION LAYER
+// Pure motion, independent of how troops are drawn: it only produces offsets, squash/stretch,
+// rotation, weapon swing, flash and visibility. Any art style can be drawn with these poses.
+//   FX.init(u, kind)          kind: "foot" | "rider" | "beast" | "siege"
+//   FX.move(u, dist)          call while walking; returns true on each landing (spawn dust)
+//   FX.attack(u, dx, dy, ranged)
+//   FX.hit(u, dx, dy, power)  knockback + flash
+//   FX.recoil(u, dx, dy, power)  artillery kick: springs back and rolls back and forth
+//   FX.die(u, dirx), FX.cheer(u)
+//   FX.update(u, dt) every frame, FX.pose(u) when drawing
+const REST_POSE = { ox: 0, oy: 0, sx: 1, sy: 1, rot: 0, weaponRot: 0, armRot: 0, flash: 0, visible: true };
+const FX_KINDS = {
+  foot:  { hopH: 3, stride: 14, stiff: 140, damp: 18, lunge: 5 },
+  rider: { hopH: 2, stride: 18, stiff: 140, damp: 18, lunge: 6 },
+  beast: { hopH: 1, stride: 22, stiff: 90, damp: 14, lunge: 4 },
+  siege: { hopH: 0, stride: 12, stiff: 16, damp: 2.2, lunge: 0 },   // soft spring, little damping: rolls back and forth
+};
+const FX = {
+  init(u, kind) {
+    u.fx = { ...FX_KINDS[kind], kind, t: Math.random() * 10, seed: Math.random() * 6, hop: Math.random() * Math.PI,
+             air: 0, land: 0, moving: 0, lunge: 0, ldx: 0, ldy: 0, swing: 0, ranged: false,
+             kx: 0, ky: 0, kvx: 0, kvy: 0, rot: 0, rotV: 0, flash: 0, arm: 0,
+             dead: false, dT: 0, dy: 0, dvy: 0, dieDir: 1, cheering: false };
+  },
+  move(u, dist) {
+    const f = u.fx, before = Math.floor(f.hop / Math.PI);
+    f.hop += (dist / f.stride) * Math.PI; f.moving = 1;
+    if (Math.floor(f.hop / Math.PI) !== before) { f.land = 1; return f.hopH > 0; }
+    return false;
+  },
+  attack(u, dx, dy, ranged) {
+    const f = u.fx, d = Math.hypot(dx, dy) || 1;
+    f.lunge = 1; f.ldx = (dx / d) * (ranged ? -0.5 : 1); f.ldy = (dy / d) * (ranged ? -0.5 : 1); f.swing = 1; f.ranged = ranged;
+  },
+  hit(u, dx, dy, power) {
+    const f = u.fx, d = Math.hypot(dx, dy) || 1;
+    f.flash = 1; f.kvx += (dx / d) * power; f.kvy += (dy / d) * power; f.rotV += (Math.random() - 0.5) * power * 0.06;
+  },
+  recoil(u, dx, dy, power) {
+    const f = u.fx, d = Math.hypot(dx, dy) || 1;
+    f.kvx -= (dx / d) * power; f.kvy -= (dy / d) * power; f.rotV -= Math.sign(dx || 1) * 1.6; f.arm = 1;
+  },
+  die(u, dirx) { const f = u.fx; f.dead = true; f.dvy = -55; f.dieDir = dirx >= 0 ? 1 : -1; f.flash = 1; },
+  cheer(u) { u.fx.cheering = true; },
+  update(u, dt) {
+    const f = u.fx; f.t += dt;
+    // knockback spring
+    f.kvx += (-f.stiff * f.kx - f.damp * f.kvx) * dt; f.kvy += (-f.stiff * f.ky - f.damp * f.kvy) * dt;
+    f.kx += f.kvx * dt; f.ky += f.kvy * dt;
+    // tilt spring
+    const k = f.kind === "siege" ? 22 : 60, c = f.kind === "siege" ? 2.5 : 9;
+    f.rotV += (-k * f.rot - c * f.rotV) * dt; f.rot += f.rotV * dt;
+    f.lunge = Math.max(0, f.lunge - dt * 3.5); f.swing = Math.max(0, f.swing - dt * 2.6);
+    f.flash = Math.max(0, f.flash - dt * 6); f.arm = Math.max(0, f.arm - dt * 0.8);
+    f.land = Math.max(0, f.land - dt * 7); f.moving = Math.max(0, f.moving - dt * 5);
+    if (f.cheering && !f.dead) { const b = Math.floor(f.hop / Math.PI); f.hop += dt * 7; f.moving = 1; if (Math.floor(f.hop / Math.PI) !== b) f.land = 1; }
+    f.air = f.moving > 0 ? Math.abs(Math.sin(f.hop)) : f.air * Math.pow(0.0005, dt);
+    if (f.dead) {
+      f.dT += dt; f.dvy += 280 * dt; f.dy += f.dvy * dt;
+      if (f.dy > 0) { f.dy = 0; f.dvy = Math.abs(f.dvy) > 25 ? -f.dvy * 0.35 : 0; }
+    }
+  },
+  pose(u) {
+    const f = u.fx;
+    const stretch = f.air * 0.12 * (f.hopH > 0 ? 1 : 0), squash = f.land * 0.22 * (f.hopH > 0 ? 1 : 0);
+    const breathe = f.moving > 0 || f.dead ? 0 : 0.035 * Math.sin(f.t * 3 + f.seed);
+    let sy = 1 + stretch - squash + breathe, sx = 1 - stretch * 0.5 + squash * 0.8;
+    const l = f.lunge > 0 ? Math.sin((1 - f.lunge) * Math.PI) * f.lunge * 2 * f.lunge : 0;
+    let ox = f.kx + f.ldx * l * (f.ranged ? 3 : 6), oy = f.ky + f.ldy * l * (f.ranged ? 3 : 6) - f.air * f.hopH + f.dy;
+    // weapon: wind up, strike through, settle
+    const p = 1 - f.swing;
+    let weaponRot = f.swing <= 0 ? 0 : p < 0.25 ? -1.3 * (p / 0.25) : p < 0.45 ? -1.3 + 2.5 * ((p - 0.25) / 0.2) : 1.2 * (1 - (p - 0.45) / 0.55);
+    if (f.ranged) weaponRot *= 0.2;
+    if (f.cheering) weaponRot = -0.7 + 0.3 * Math.sin(f.hop * 2);
+    // catapult arm: snaps forward, then slowly winds back
+    const ap = 1 - f.arm, armRot = f.arm <= 0 ? 0 : ap < 0.12 ? 2.8 * (ap / 0.12) : 2.8 * (1 - (ap - 0.12) / 0.88);
+    let rot = f.rot + (f.moving > 0 && f.kind !== "siege" ? Math.sin(f.hop) * 0.07 : 0);
+    if (f.kind === "siege" && f.moving > 0) rot += Math.sin(f.t * 14) * 0.03;          // rattling along
+    if (f.dead) { rot += f.dieDir * Math.min(1, f.dT * 5) * (Math.PI / 2); sx = sy = 1; }
+    const visible = !f.dead || f.dT < 0.8 || Math.floor(f.dT * 14) % 2 === 0;       // blink out
+    return { ox, oy, sx, sy, rot, weaponRot, armRot, flash: f.flash, visible };
+  },
+};
 
 // =====================================================================  BATTLE
 class Battle {
   constructor(run, W, H) {
     this.W = W; this.H = H; this.t = 0; this.over = false; this.endT = 0; this.winner = null;
-    this.units = []; this.shots = []; this.marks = [];
+    this.units = []; this.shots = []; this.marks = []; this.parts = []; this.shake = 0;
     const en = run.enemy, E = EMPIRES[en.emp];
     this.E = E;
     const mine = [], theirs = [];
@@ -574,10 +626,12 @@ class Battle {
   }
   make(side, key, E, s) {
     const U = UNITS[key];
-    const rad = U.mount === "elephant" ? 20 : U.mount ? 13 : 8;
-    return { side, key, E, U, hp: s.hp, maxHp: s.hp, atk: s.atk, cd: s.cd, cdLeft: rand(0, s.cd), range: Math.max(s.range || 0, 0),
-             speed: U.speed * rand(0.92, 1.08), splash: U.splash || 0, regen: s.regen || 0, rad, x: 0, y: 0, target: null,
-             retarget: 0, flash: 0, swing: 0, anim: rand(0, 6), dead: false, deadT: 0, facing: side === 0 ? 1 : -1 };
+    const rad = U.mount === "elephant" ? 22 : U.mount === "siege" ? 16 : U.mount ? 15 : 10;
+    const u = { side, key, E, U, spr: getSprite(key, E), hp: s.hp, maxHp: s.hp, atk: s.atk, cd: s.cd, cdLeft: rand(0.2, s.cd),
+                range: Math.max(s.range || 0, 0), speed: U.speed * rand(0.92, 1.08), splash: U.splash || 0, regen: s.regen || 0,
+                rad, x: 0, y: 0, target: null, retarget: 0, dead: false, deadT: 0, facing: side === 0 ? 1 : -1 };
+    FX.init(u, U.mount === "siege" ? "siege" : U.mount === "elephant" ? "beast" : U.mount ? "rider" : "foot");
+    return u;
   }
   // Formation: melee in front, riders next, archers behind, siege at the back.
   place(list, side) {
@@ -589,8 +643,8 @@ class Battle {
     for (const row of rows) {
       for (let i = 0; i < row.length; i += perLine) {
         const chunk = row.slice(i, i + perLine), width = (chunk.length - 1) * gap;
-        const y = side === 0 ? this.H * 0.62 + lineIdx * 26 : this.H * 0.38 - lineIdx * 26;
-        chunk.forEach((u, j) => { u.x = this.W / 2 - width / 2 + j * gap + rand(-3, 3); u.y = Math.min(this.H - 12, Math.max(30, y + rand(-3, 3))); });
+        const y = side === 0 ? this.H * 0.64 + lineIdx * 28 : this.H * 0.36 - lineIdx * 28;
+        chunk.forEach((u, j) => { u.x = this.W / 2 - width / 2 + j * gap + rand(-3, 3); u.y = Math.min(this.H - 8, Math.max(44, y + rand(-3, 3))); });
         lineIdx++;
       }
     }
@@ -601,24 +655,35 @@ class Battle {
     const c = COUNTERS[a.U.role]?.[d.U.role] || 1;
     return c * (a.U.bonus?.[d.U.role] || 1);
   }
-  hit(attacker, target, dmg) {
+  // particles live in art pixels
+  burst(x, y, n, colors, speed, lift = 30, life = 0.45) {
+    for (let i = 0; i < n; i++) {
+      const a = Math.random() * Math.PI * 2, s = speed * rand(0.4, 1);
+      this.parts.push({ x: x / PX, y: y / PX, vx: Math.cos(a) * s, vy: Math.sin(a) * s * 0.6 - lift, life: life * rand(0.6, 1.2), t: 0, c: pick(colors), size: Math.random() < 0.3 ? 2 : 1 });
+    }
+  }
+  hit(attacker, target, dmg, power = 32) {
     if (target.dead) return;
     target.hp -= dmg * this.mult(attacker, target);
-    target.flash = 1;
-    if (target.hp <= 0) { target.dead = true; target.deadT = 0; }
+    FX.hit(target, target.x - attacker.x, target.y - attacker.y, power);
+    this.burst(target.x, target.y - 18, 3, ["#ffffff", "#ffe38a"], 40, 10, 0.25);
+    if (target.hp <= 0) {
+      target.dead = true; target.deadT = 0;
+      FX.die(target, target.x - attacker.x);
+      this.burst(target.x, target.y - 8, 8, ["#d8d2c4", "#b8ae98", "#8d8984"], 45, 25, 0.6);
+    }
   }
   splashAt(attacker, x, y, radius, dmg, skip) {
     for (const u of this.units) {
       if (u.dead || u.side === attacker.side || u === skip) continue;
       const d = Math.hypot(u.x - x, u.y - y);
-      if (d < radius + u.rad * 0.5) this.hit(attacker, u, dmg * (d < radius * 0.4 ? 1 : 0.55));
+      if (d < radius + u.rad * 0.5) this.hit(attacker, u, dmg * (d < radius * 0.4 ? 1 : 0.55), 55);
     }
   }
   tick(dt) {
     this.t += dt;
     const live = this.units.filter((u) => !u.dead);
     for (const u of live) {
-      u.flash = Math.max(0, u.flash - dt * 5); u.swing = Math.max(0, u.swing - dt * 3);
       if (u.regen) u.hp = Math.min(u.maxHp, u.hp + u.regen * dt);
       u.retarget -= dt;
       if (!u.target || u.target.dead || u.retarget <= 0) {
@@ -629,15 +694,26 @@ class Battle {
       const tg = u.target; if (!tg) continue;
       const dx = tg.x - u.x, dy = tg.y - u.y, dist = Math.hypot(dx, dy) || 1;
       const reach = (u.range || 0) + u.rad + tg.rad + 2;
-      if (Math.abs(dx) > 2) u.facing = dx > 0 ? 1 : -1;
+      if (Math.abs(dx) > 4) u.facing = dx > 0 ? 1 : -1;
       if (dist > reach) {
-        u.x += (dx / dist) * u.speed * dt; u.y += (dy / dist) * u.speed * dt; u.anim += dt;
+        const step = u.speed * dt;
+        u.x += (dx / dist) * step; u.y += (dy / dist) * step;
+        if (FX.move(u, step) && Math.random() < 0.5) this.burst(u.x, u.y, 2, ["#b8a77a", "#9c8a55"], 18, 6, 0.3);
       } else {
         u.cdLeft -= dt;
         if (u.cdLeft <= 0) {
-          u.cdLeft = u.cd * rand(0.9, 1.1); u.swing = 1;
-          if (u.U.proj) this.shots.push({ from: u, target: tg, x0: u.x, y0: u.y - 14, x1: tg.x, y1: tg.y - 8, t: 0, dur: Math.max(0.25, dist / 420), kind: u.U.proj, dmg: u.atk });
-          else { this.hit(u, tg, u.atk); if (u.splash) this.splashAt(u, tg.x, tg.y, u.splash, u.atk * 0.5, tg); }
+          u.cdLeft = u.cd * rand(0.9, 1.1);
+          FX.attack(u, dx, dy, !!u.U.proj);
+          if (u.U.proj) {
+            this.shots.push({ from: u, target: tg, x0: u.x, y0: u.y - 16, x1: tg.x, y1: tg.y - 10, t: 0, dur: Math.max(0.25, dist / 420), kind: u.U.proj, dmg: u.atk, spin: rand(-12, 12) });
+            if (u.U.mount === "siege") {
+              FX.recoil(u, dx, dy, 70);
+              this.burst(u.x + u.facing * 10, u.y - 14, 6, ["#d8d2c4", "#efe6cf"], 35, 15, 0.5);
+            }
+          } else {
+            this.hit(u, tg, u.atk, u.U.mount === "elephant" ? 60 : 32);
+            if (u.splash) { this.splashAt(u, tg.x, tg.y, u.splash, u.atk * 0.5, tg); this.shake = Math.max(this.shake, 2); }
+          }
         }
       }
     }
@@ -650,40 +726,47 @@ class Battle {
         a.x -= nx * push; a.y -= ny * push; b.x += nx * push; b.y += ny * push;
       }
     }
-    for (const u of live) { u.x = Math.max(10, Math.min(this.W - 10, u.x)); u.y = Math.max(24, Math.min(this.H - 6, u.y)); }
+    for (const u of live) { u.x = Math.max(12, Math.min(this.W - 12, u.x)); u.y = Math.max(44, Math.min(this.H - 6, u.y)); }
     // projectiles
     for (const s of this.shots) {
       s.t += dt;
-      if (!s.target.dead) { s.x1 = s.target.x; s.y1 = s.target.y - 8; }
+      if (!s.target.dead) { s.x1 = s.target.x; s.y1 = s.target.y - 10; }
       if (s.t >= s.dur && !s.done) {
         s.done = true;
-        if (s.kind === "rock") { this.splashAt(s.from, s.x1, s.y1 + 8, s.from.splash, s.dmg); this.marks.push({ x: s.x1, y: s.y1 + 8, t: 0 }); }
-        else if (!s.target.dead) this.hit(s.from, s.target, s.dmg);
+        if (s.kind === "rock") {
+          this.splashAt(s.from, s.x1, s.y1 + 10, s.from.splash, s.dmg);
+          this.marks.push({ x: s.x1, y: s.y1 + 10, t: 0 });
+          this.burst(s.x1, s.y1 + 8, 12, ["#9c8a55", "#7a6a40", "#c9c2b6"], 70, 35, 0.6);
+          this.shake = Math.max(this.shake, 3);
+        } else if (!s.target.dead) this.hit(s.from, s.target, s.dmg, s.kind === "bolt" ? 45 : 22);
       }
     }
     this.shots = this.shots.filter((s) => !s.done);
-    for (const u of this.units) if (u.dead) u.deadT += dt;
-    this.units = this.units.filter((u) => !u.dead || u.deadT < 1.6);
+    for (const u of this.units) { FX.update(u, dt); if (u.dead) u.deadT += dt; }
+    this.units = this.units.filter((u) => !u.dead || u.deadT < 1.4);
     for (const m of this.marks) m.t += dt;
     this.marks = this.marks.filter((m) => m.t < 1.2);
+    for (const p of this.parts) { p.t += dt; p.vy += 120 * dt; p.x += p.vx * dt; p.y += p.vy * dt; }
+    this.parts = this.parts.filter((p) => p.t < p.life);
+    this.shake = Math.max(0, this.shake - dt * 10);
     if (!this.over) {
       const a = this.alive(0), b = this.alive(1);
       if (a === 0 || b === 0 || this.t > 120) {
         this.over = true;
         this.winner = b === 0 && a > 0 ? 0 : a === 0 ? 1 : (this.sideHp(0) / this.startHp[0] >= this.sideHp(1) / this.startHp[1] ? 0 : 1);
+        for (const u of this.units) if (!u.dead && u.side === this.winner) FX.cheer(u);
       }
     } else this.endT += dt;
   }
   // Static grass, built once per battle at art resolution (w × h art pixels).
   buildGround(w, h) {
-    const c = document.createElement("canvas"); c.width = w; c.height = h;
-    const g = c.getContext("2d");
+    const c = makeCanvas(w, h), g = c.getContext("2d");
     g.fillStyle = "#7ea456"; g.fillRect(0, 0, w, h);
     for (let y = 0; y < h; y += 20) { g.fillStyle = "#83a95b"; g.fillRect(0, y, w, 10); }
     g.fillStyle = "#9c8a55"; g.beginPath(); g.ellipse(w / 2, h / 2, w * 0.45, h * 0.12, 0, 0, Math.PI * 2); g.fill();
     g.fillStyle = "#a8955e"; g.beginPath(); g.ellipse(w / 2, h / 2, w * 0.38, h * 0.08, 0, 0, Math.PI * 2); g.fill();
     let seed = 7; const next = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
-    for (let i = 0; i < (w * h) / 18; i++) {           // grass specks and tufts
+    for (let i = 0; i < (w * h) / 18; i++) {
       const x = Math.floor(next() * w), y = Math.floor(next() * h), v = next();
       g.fillStyle = v < 0.5 ? "#6b9146" : v < 0.85 ? "#93b86a" : "#5d823b";
       g.fillRect(x, y, 1, 1);
@@ -693,44 +776,42 @@ class Battle {
     g.fillStyle = shade(PLAYER.primary, 0.35); g.fillRect(0, h - 4, w, 4);
     return c;
   }
-  drawMarks(g) {
-    for (const m of this.marks) { g.fillStyle = `rgba(90,60,30,${0.45 * (1 - m.t / 1.2)})`; g.beginPath(); g.ellipse(m.x, m.y, 24, 9, 0, 0, Math.PI * 2); g.fill(); }
-  }
-  drawActors(g) {
-    // troops, back to front
+  // Everything below draws in art pixels (1 unit = 1 art pixel).
+  draw(g) {
+    for (const m of this.marks) {
+      g.fillStyle = `rgba(90,60,30,${0.45 * (1 - m.t / 1.2)})`;
+      g.beginPath(); g.ellipse(Math.round(m.x / PX), Math.round(m.y / PX), 12, 4, 0, 0, Math.PI * 2); g.fill();
+    }
     const sorted = [...this.units].sort((a, b) => a.y - b.y);
     for (const u of sorted) {
-      g.save(); g.translate(u.x, u.y);
-      if (u.dead) { g.globalAlpha = Math.max(0, 1 - u.deadT / 1.6); g.rotate(u.facing * 1.35); }
-      else { // team ring under the feet
-        g.strokeStyle = u.side === 0 ? "rgba(47,95,179,0.85)" : "rgba(179,38,43,0.85)"; g.lineWidth = 2;
-        g.beginPath(); g.ellipse(0, 1, u.rad + 2, 4, 0, 0, Math.PI * 2); g.stroke();
-      }
-      g.scale(u.facing * 1.3, 1.3);
-      drawTroop(g, u.key, u.E, u.anim, u.flash, u.swing);
-      g.restore();
+      const pose = FX.pose(u); if (!pose.visible) continue;
+      const x = Math.round(u.x / PX), y = Math.round(u.y / PX);
+      // shadow (shrinks while airborne) and team marker
+      const sw = Math.max(4, Math.round((u.spr.w - 6) * (1 - u.fx.air * 0.3)));
+      g.fillStyle = "#5f8a3c"; g.fillRect(x + Math.round(pose.ox) - (sw >> 1), y - 1, sw, 2);
+      if (!u.dead) { g.fillStyle = u.side === 0 ? "#3f7be0" : "#d8383e"; g.fillRect(x + Math.round(pose.ox) - (sw >> 1) + 1, y + 1, sw - 2, 1); }
+      const frame = u.U.mount && u.U.mount !== "siege" && u.fx.moving > 0 ? Math.floor(u.fx.hop / Math.PI) & 1 : 0;
+      drawSprite(g, u.spr, x, y, pose, u.facing, frame);
       if (!u.dead && u.hp < u.maxHp) {
-        const w = u.U.mount === "elephant" ? 40 : 24, top = u.U.mount === "elephant" ? 64 : u.U.mount ? 48 : 44;
-        g.fillStyle = INK; g.fillRect(u.x - w / 2 - 2, u.y - top - 2, w + 4, 6);
-        g.fillStyle = u.side === 0 ? "#5fb0ff" : "#ff6b5f"; g.fillRect(u.x - w / 2, u.y - top, w * Math.max(0, u.hp / u.maxHp), 2);
+        const w = u.U.mount === "elephant" ? 18 : 10, top = y - u.spr.ay - 3 + Math.round(pose.oy);
+        g.fillStyle = INK; g.fillRect(x - (w >> 1) - 1, top - 1, w + 2, 3);
+        g.fillStyle = u.side === 0 ? "#5fb0ff" : "#ff6b5f"; g.fillRect(x - (w >> 1), top, Math.max(1, Math.round(w * u.hp / u.maxHp)), 1);
       }
     }
-    // projectiles, lobbed in an arc
     for (const s of this.shots) {
-      const k = Math.min(1, s.t / s.dur), x = s.x0 + (s.x1 - s.x0) * k, yLine = s.y0 + (s.y1 - s.y0) * k;
-      const arc = (s.kind === "rock" ? 70 : s.kind === "bolt" ? 10 : 30) * Math.sin(Math.PI * k), y = yLine - arc;
-      const k2 = Math.min(1, k + 0.05), nx = s.x0 + (s.x1 - s.x0) * k2, ny = s.y0 + (s.y1 - s.y0) * k2 - (s.kind === "rock" ? 70 : s.kind === "bolt" ? 10 : 30) * Math.sin(Math.PI * k2);
-      const ang = Math.atan2(ny - y, nx - x);
-      g.save(); g.translate(x, y); g.rotate(ang);
-      if (s.kind === "rock") { circ(g, 0, 0, 4.5); g.fillStyle = "#8a8a8a"; g.fill(); g.strokeStyle = INK; g.lineWidth = 1.4; g.stroke(); }
-      else {
-        const len = s.kind === "bolt" ? 16 : s.kind === "javelin" ? 14 : 10;
-        g.strokeStyle = s.kind === "bolt" ? "#5a3a1c" : "#3b2a1a"; g.lineWidth = s.kind === "bolt" ? 2.4 : 1.4;
-        g.beginPath(); g.moveTo(-len, 0); g.lineTo(0, 0); g.stroke();
-        g.fillStyle = "#cfd5db"; g.beginPath(); g.moveTo(0, -2); g.lineTo(4, 0); g.lineTo(0, 2); g.fill();
-      }
-      g.restore();
+      const k = Math.min(1, s.t / s.dur), lob = s.kind === "rock" ? 70 : s.kind === "bolt" ? 10 : 30;
+      const at = (q) => [s.x0 + (s.x1 - s.x0) * q, s.y0 + (s.y1 - s.y0) * q - lob * Math.sin(Math.PI * q)];
+      const [x, y] = at(k), [nx, ny] = at(Math.min(1, k + 0.05));
+      const img = SHOT_IMGS[s.kind];
+      g.save(); g.translate(Math.round(x / PX), Math.round(y / PX));
+      g.rotate(s.kind === "rock" ? s.t * s.spin : Math.atan2(ny - y, nx - x));
+      g.drawImage(img, s.kind === "rock" ? -(img.width >> 1) : -img.width + 1, -(img.height >> 1)); g.restore();
     }
+    for (const p of this.parts) {
+      g.globalAlpha = p.t > p.life * 0.6 ? 0.5 : 1;
+      g.fillStyle = p.c; g.fillRect(Math.round(p.x), Math.round(p.y), p.size, p.size);
+    }
+    g.globalAlpha = 1;
   }
 }
 
@@ -749,16 +830,38 @@ function title() {
   $("record").textContent = store.best ? `Best campaign: ${store.best} ${store.best === 1 ? "victory" : "victories"}` : "Five empires. One banner. How far can you march?";
   requestAnimationFrame(drawTitleArt);
 }
+// Title lineup: sprites hop in place using the same animation layer as the battles.
+let titleRaf = 0, titleTroops = null, titleLast = 0;
 function drawTitleArt() {
-  const c = $("titleArt");
-  const [g, w, h] = pixelCanvas(c), r = { width: w, height: h };
-  const lineup = [["sword", PLAYER, 1], ["knight", PLAYER, 1], ["archer", PLAYER, 1], ["legionary", EMPIRES.rome, -1], ["lancer", EMPIRES.mongol, -1], ["elephant", EMPIRES.persia, -1], ["jaguar", EMPIRES.aztec, -1], ["chariot", EMPIRES.egypt, -1]];
-  const W = r.width, step = W / (lineup.length + 1);
-  g.fillStyle = "#7ea456"; g.fillRect(0, r.height * 0.62, W, r.height * 0.38);
-  g.fillStyle = "#6b9146"; for (let x = 6; x < W; x += 14) g.fillRect(x, r.height * 0.7 + (x % 28), 4, 2);
-  SHADOW = "#668c45";
-  lineup.forEach(([k, E, f], i) => { g.save(); g.translate(step * (i + 1), r.height * 0.9); g.scale(1.5 * f, 1.5); drawTroop(g, k, E, i, 0, 0); g.restore(); });
-  crisp(g, c.width, c.height);
+  if (!titleTroops) {
+    titleTroops = [["sword", PLAYER, 1], ["knight", PLAYER, 1], ["archer", PLAYER, 1], ["legionary", EMPIRES.rome, -1],
+                   ["lancer", EMPIRES.mongol, -1], ["elephant", EMPIRES.persia, -1], ["jaguar", EMPIRES.aztec, -1], ["chariot", EMPIRES.egypt, -1]]
+      .map(([key, E, facing], i) => {
+        const U = UNITS[key], u = { key, U, facing, spr: getSprite(key, E) };
+        FX.init(u, U.mount === "elephant" ? "beast" : U.mount ? "rider" : "foot");
+        u.fx.hop = i * 0.9; FX.cheer(u);
+        return u;
+      });
+  }
+  if (!titleRaf) { titleLast = performance.now(); titleRaf = requestAnimationFrame(titleLoop); }
+}
+function titleLoop(now) {
+  if ($("title").hidden) { titleRaf = 0; return; }
+  const dt = Math.min(0.05, (now - titleLast) / 1000); titleLast = now;
+  const c = $("titleArt"), r = c.getBoundingClientRect(), TPX = 3;
+  const w = Math.round(r.width / TPX), h = Math.round(r.height / TPX);
+  if (c.width !== w || c.height !== h) { c.width = w; c.height = h; }
+  const g = c.getContext("2d"); g.imageSmoothingEnabled = false; g.clearRect(0, 0, w, h);
+  g.fillStyle = "#7ea456"; g.fillRect(0, Math.round(h * 0.6), w, h);
+  g.fillStyle = "#6b9146"; for (let x = 3; x < w; x += 7) g.fillRect(x, Math.round(h * 0.66) + (x % 3) * 3, 2, 1);
+  const left = 12, right = w - 18, step = (right - left) / (titleTroops.length - 1);
+  titleTroops.forEach((u, i) => {
+    FX.update(u, dt);
+    const x = Math.round(left + step * i), y = h - 4;
+    g.fillStyle = "#5f8a3c"; g.fillRect(x - 5, y - 1, 10, 2);
+    drawSprite(g, u.spr, x, y, FX.pose(u), u.facing, u.U.mount ? Math.floor(u.fx.hop / Math.PI) & 1 : 0);
+  });
+  titleRaf = requestAnimationFrame(titleLoop);
 }
 
 function startDraft(first) {
@@ -845,7 +948,6 @@ $("roster").addEventListener("click", (e) => {
 $("marchBtn").onclick = () => startBattle();
 
 const field = $("field"), fg = field.getContext("2d");
-const layer = document.createElement("canvas"), lg = layer.getContext("2d", { willReadFrequently: true });
 function startBattle() {
   run.stage = "battle"; persist();
   show("battle");
@@ -854,21 +956,19 @@ function startBattle() {
   $("tug").style.setProperty("--ec", E.primary);
   const r = field.getBoundingClientRect();
   const aw = Math.round(r.width / PX), ah = Math.round(r.height / PX);
-  field.width = aw; field.height = ah; layer.width = aw; layer.height = ah;
+  field.width = aw; field.height = ah;
   battle = new Battle(run, r.width, r.height);
   const ground = battle.buildGround(aw, ah);
-  SHADOW = "#668c45";
   let last = performance.now();
   cancelAnimationFrame(raf);
   const loop = (now) => {
     const dt = Math.min(0.05, (now - last) / 1000); last = now;
     for (let i = 0; i < speed; i++) battle.tick(dt);
-    fg.setTransform(1, 0, 0, 1, 0, 0); fg.drawImage(ground, 0, 0);
-    fg.setTransform(1 / PX, 0, 0, 1 / PX, 0, 0); battle.drawMarks(fg);
-    lg.setTransform(1, 0, 0, 1, 0, 0); lg.clearRect(0, 0, aw, ah);
-    lg.setTransform(1 / PX, 0, 0, 1 / PX, 0, 0); battle.drawActors(lg);
-    crisp(lg, aw, ah);
-    fg.setTransform(1, 0, 0, 1, 0, 0); fg.drawImage(layer, 0, 0);
+    const shx = battle.shake ? Math.round(rand(-1, 1) * battle.shake) : 0, shy = battle.shake ? Math.round(rand(-1, 1) * battle.shake) : 0;
+    fg.setTransform(1, 0, 0, 1, shx, shy); fg.imageSmoothingEnabled = false;
+    fg.fillStyle = "#5f8a3c"; fg.fillRect(-4, -4, aw + 8, ah + 8);
+    fg.drawImage(ground, 0, 0);
+    battle.draw(fg);
     const a = battle.alive(0), b = battle.alive(1), ha = battle.sideHp(0), hb = battle.sideHp(1);
     $("hudMine").textContent = `You: ${a}`; $("hudTheirs").textContent = `${E.short}: ${b}`;
     $("tugFill").style.width = (100 * ha / Math.max(1, ha + hb)) + "%";

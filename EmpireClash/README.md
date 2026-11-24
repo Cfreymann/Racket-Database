@@ -43,3 +43,23 @@ Enemy armies have `4 + 1.5 × battle` troops (capped at 40), and their stats gro
 
 All the numbers are at the top of the script in `index.html`: `UNITS`, `EMPIRES`, `CARDS`,
 `ENEMY_CAP`, `ARMY_CAP`, `victoryGold`, `recruitCost` and the scaling in `makeEnemy`.
+
+## Art and animation
+
+**Sprites:** troops are hand-authored pixel grids (one character per pixel) in `index.html`:
+`BODY`, `HEADS`, `SHIELDS`, `WEAPONS`, `HORSE_A/B`, `CART`, `ELEPHANT`, `SIEGE_BASE`,
+`CAT_ARM` and `BALLISTA_TOP`. `getSprite()` builds each troop from those parts and recolors them
+with the empire's palette. The weapon and the catapult arm are separate pieces, so they can swing.
+
+**Animation:** the `FX` object is a motion layer that knows nothing about the art. It only outputs
+a pose: an offset, squash and stretch, a rotation, a weapon swing angle, a catapult arm angle, a
+flash amount and whether the troop is visible. `drawSprite()` applies that pose to whatever sprite
+it is given, so the art can be redrawn in a new style and every animation still works.
+
+* Movement: hops with squash on landing and stretch in the air, a gallop for riders, idle breathing.
+* Attacks: a melee lunge with a wind-up and weapon swing, and a pull-back for archers.
+* Hits: a white flash plus spring knockback.
+* Artillery: the shot kicks the engine back, then it rolls back and forth on a soft spring.
+* Deaths: the troop pops up, topples over, bounces and blinks out.
+* Victory: the winning side hops in celebration.
+* Effects: dust, sparks, impact bursts and screen shake come from the battle's particle list.
