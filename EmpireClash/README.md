@@ -21,6 +21,20 @@ browser to play.
   | 4 | Singara     | AD 344 | Desert, rock ridges with three passes, an oasis  | 36 troops   |
   | 5 | Ctesiphon   | AD 363 | Wide Tigris with three bridges, Rome's biggest army | 40 troops |
 
+  **Act II, the March on Rome (what if):** after Ctesiphon, Persia keeps marching west.
+
+  | #  | Battle         | Map                                                    | Rome fields   |
+  |----|----------------|--------------------------------------------------------|---------------|
+  | 6  | Beroea (Aleppo)| A wall with a central gate, open flanks, rocky ground  | 34 (×1.15)    |
+  | 7  | Alexandria     | Two Nile canals with staggered bridges                 | 34 (×1.15)    |
+  | 8  | Constantinople | A moat with three bridges leading to three gates       | 36 (×1.35)    |
+  | 9  | Athens         | A winding stream with two bridges through rocky hills  | 38 (×1.25)    |
+  | 10 | Rome           | The Tiber with three bridges, then the Aurelian Walls  | 40 (×1.72)    |
+
+  The map covers Italy to Afghanistan. Rome's lands are split into provinces too (`ROMAN_PROVINCES`),
+  and each Act II win annexes a block of them: Syria and Palestine; Egypt and Libya; Anatolia and
+  Thrace; Greece, Macedonia and Dalmatia; and Italy, Sicily and Africa.
+
   * **Your army:** you start with 25 Persian troops and can grow to 40. Each win gives gold and a card.
   * **Losing:** a loss doesn't end the campaign. Your army regroups and you retry the battle.
   * **Field size:** campaign fields are twice the screen in each direction, with the same troop size.
@@ -45,8 +59,13 @@ browser to play.
 ## Terrain
 
 Campaign maps can have rivers and lakes, bridges, rocks and walls. Troops can't enter water, rocks or
-walls. They walk straight when the way is clear and otherwise follow an A* path on a 16px grid. That
-is how they find bridges and gates; formations squeeze through and re-form on the other side.
+walls. They walk straight when the way is clear and otherwise follow an A* path on a 16px grid:
+* The path costs extra next to obstacles, so it keeps to the middle of bridges and gates.
+* Troops cut corners once the next waypoint is in view.
+* Troops slide along obstacles instead of stopping dead.
+* Formations narrow into a column to pass a bridge or gate, then fan out again.
+* Crowd pushes never shove anyone into an obstacle.
+* Archers don't stop to shoot on a bridge or in a gate.
 Arrows and artillery fly over everything. Maps are defined in `CAMPAIGNS` as fractions of the field,
 so adding a battle means adding a stage with a `map` and an `enemy`.
 
@@ -101,6 +120,12 @@ so adding a battle means adding a stage with a `map` and an `enemy`.
   Then it explodes for area damage: full in the middle, half at the edge. Troops can walk out of
   the ring before it lands.
 * War Elephants also hit everyone around their target.
+* Catapult and Mangonel blasts throw troops back and stun them briefly. Heavy beasts and engines
+  barely budge, and nobody is thrown into water, rocks or walls.
+* Ballista bolts fly flat and fast and pierce the line, hitting up to 5 troops. Damage drops by a
+  quarter with each troop the bolt passes through.
+* A siege engine with enemy melee troops on top of it can't fire (a red "!" blinks over it) until
+  they're dead or gone.
 * Horse Archers back away slowly from melee troops that reach them, and keep shooting as they go.
 
 ## The five empires

@@ -132,8 +132,8 @@ canvas { image-rendering: crisp-edges; image-rendering: pixelated; }
 
 /* Campaign map */
 .map-wrap { flex: none; border: 3px solid var(--ink); background: #3b6ea8; box-shadow: 0 4px 0 var(--ink); overflow-x: auto; overflow-y: hidden; -webkit-overflow-scrolling: touch; }
-.map-inner { position: relative; width: 480px; }
-#worldMap { display: block; width: 480px; height: 270px; }
+.map-inner { position: relative; width: 672px; }
+#worldMap { display: block; width: 672px; height: 294px; }
 .map-toast { margin: 0; font: 700 14px/1.35 var(--body); color: #4a2a72; background: #efe0ff; border: 2px solid #4a2a72; padding: 6px 10px; }
 .map-label {
   position: absolute; transform: translate(-50%, -50%); pointer-events: none; white-space: nowrap;
@@ -835,7 +835,21 @@ class Terrain {
       for (const ox of [-q, 0, q]) for (const oy of [-q, 0, q]) if (this.kindAt(cx + ox, cy + oy)) { hit = 1; break; }
       this.grid[r * this.cols + c] = hit;
     }
+    // Open cells beside an obstacle cost more to walk, so paths keep to the middle of bridges and
+    // gates instead of hugging banks and rock corners. Chokepoints (bridges, gates, narrow passes)
+    // are marked so troops don't stop there and block them.
+    this.edge = new Uint8Array(this.cols * this.rows);
+    this.chokeGrid = new Uint8Array(this.cols * this.rows);
+    for (let r = 0; r < this.rows; r++) for (let c = 0; c < this.cols; c++) {
+      if (this.blockedCell(c, r)) continue;
+      let near = 0;
+      for (let dr = -1; dr <= 1; dr++) for (let dc = -1; dc <= 1; dc++) if (this.blockedCell(c + dc, r + dr)) near++;
+      this.edge[r * this.cols + c] = near;
+      const side = (dc0, dr0) => { for (let k = 1; k <= 3; k++) if (this.blockedCell(c + dc0 * k, r + dr0 * k)) return true; return false; };
+      this.chokeGrid[r * this.cols + c] = (side(-1, 0) && side(1, 0)) || (side(0, -1) && side(0, 1)) ? 1 : 0;
+    }
   }
+  choke(x, y) { const c = Math.floor(x / NAV_CELL), r = Math.floor(y / NAV_CELL); return !this.blockedCell(c, r) && this.chokeGrid[r * this.cols + c] === 1; }
   water(x, y) {
     for (const r of this.rivers) for (let i = 1; i < r.pts.length; i++) if (distToSeg(x, y, ...r.pts[i - 1], ...r.pts[i]) < r.hw) return true;
     for (const l of this.lakes) if (((x - l.x) / l.rx) ** 2 + ((y - l.y) / l.ry) ** 2 < 1) return true;
@@ -898,7 +912,7 @@ class Terrain {
         if (!dr && !dc) continue;
         const nc = c + dc, nr = r + dr;
         if (this.blockedCell(nc, nr) || (dr && dc && (this.blockedCell(c + dc, r) || this.blockedCell(c, r + dr)))) continue;
-        const j = nr * C + nc, ng = gs[i] + (dr && dc ? 1.414 : 1);
+        const j = nr * C + nc, ng = gs[i] + (dr && dc ? 1.414 : 1) + (this.edge[j] ? 0.35 + this.edge[j] * 0.15 : 0);
         if (ng < gs[j]) { gs[j] = ng; from[j] = i; push(j, ng + h(j)); }
       }
     }
@@ -976,7 +990,7 @@ const GROUND_CACHE = new Map();
 const CAMPAIGNS = {
   persia: {
     title: "Sasanian Persia", years: "AD 224 – 651", faction: "persia",
-    intro: "Lead the Sasanian shahs against Rome, Persia's great rival for four centuries.",
+    intro: "Act I follows the real wars of the Sasanian shahs against Rome. Act II asks what if Persia had kept marching, all the way to Rome.",
     startArmy: { sword: 6, spear: 8, archer: 7, knight: 3, catapult: 1 }, startGold: 60, cap: 40,
     stages: [
       { id: "misiche", name: "Misiche", year: "AD 244", lon: 43.8, lat: 33.4, flag: [-19, 9],
@@ -989,11 +1003,11 @@ const CAMPAIGNS = {
                rocks: [{ x: 0.5, y: 0.58, r: 0.025 }, { x: 0.08, y: 0.42, r: 0.02 }, { x: 0.92, y: 0.57, r: 0.02 }] } },
       { id: "barbalissos", name: "Barbalissos", year: "AD 253", lon: 38.0, lat: 36.0, flag: [-19, 5],
         blurb: "Shapur strikes into Roman Syria. A Roman army of 60,000 waits at the great bend of the Euphrates.",
-        terrainNote: "A slanting river with a single bridge. Rocky banks.",
+        terrainNote: "A slanting river: one main bridge and a narrow crossing upstream. Rocky banks.",
         enemy: { emp: "rome", army: { legionary: 20, equites: 7, ballista: 3 }, scale: 0.95 },
         map: { ground: "steppe",
                rivers: [{ pts: [[0, 0.43], [0.35, 0.47], [0.65, 0.53], [1, 0.57]], w: 0.05 }],
-               bridges: [{ x: 0.5, y: 0.5, w: 0.12, h: 0.1 }],
+               bridges: [{ x: 0.5, y: 0.5, w: 0.12, h: 0.1 }, { x: 0.12, y: 0.444, w: 0.08, h: 0.09 }],
                rocks: [{ x: 0.15, y: 0.55, r: 0.03 }, { x: 0.22, y: 0.56, r: 0.02 }, { x: 0.85, y: 0.45, r: 0.03 }, { x: 0.3, y: 0.38, r: 0.025 }, { x: 0.7, y: 0.62, r: 0.02 }] } },
       { id: "edessa", name: "Edessa", year: "AD 260", lon: 38.8, lat: 37.2, flag: [-6, -13],
         blurb: "Emperor Valerian holds the walls of Edessa. Break through the gates and a Roman emperor could become your prisoner.",
@@ -1017,13 +1031,63 @@ const CAMPAIGNS = {
                rivers: [{ pts: [[0, 0.52], [0.3, 0.5], [0.7, 0.53], [1, 0.5]], w: 0.07 }],
                bridges: [{ x: 0.18, y: 0.506, w: 0.1, h: 0.11 }, { x: 0.5, y: 0.515, w: 0.1, h: 0.11 }, { x: 0.82, y: 0.523, w: 0.1, h: 0.11 }],
                rocks: [{ x: 0.34, y: 0.4, r: 0.02 }, { x: 0.66, y: 0.62, r: 0.02 }] } },
+      // ---- Act II: the March on Rome (what if) ----
+      { id: "beroea", act: 2, name: "Beroea", year: "What if · AD 364", lon: 37.2, lat: 36.2, flag: [-16, 14],
+        blurb: "Julian is dead and Rome is reeling. Shapur II marches west: the fortress city of Beroea (Aleppo) guards the road into Syria.",
+        terrainNote: "A long wall with one central gate. The flanks are open, the ground rocky.",
+        enemy: { emp: "rome", army: { legionary: 22, equites: 8, ballista: 4 }, scale: 1.15 },
+        map: { ground: "steppe",
+               walls: [{ x0: 0.15, y0: 0.42, x1: 0.44, y1: 0.445 }, { x0: 0.56, y0: 0.42, x1: 0.85, y1: 0.445 }],
+               rocks: [{ x: 0.25, y: 0.53, r: 0.03 }, { x: 0.32, y: 0.55, r: 0.02 }, { x: 0.68, y: 0.54, r: 0.03 }, { x: 0.08, y: 0.5, r: 0.025 }, { x: 0.92, y: 0.5, r: 0.025 }] } },
+      { id: "alexandria", act: 2, name: "Alexandria", year: "What if · AD 366", lon: 29.9, lat: 31.2, flag: [-2, -12],
+        blurb: "Egypt is Rome's granary. Take Alexandria and the empire starves. The delta is cut by canals.",
+        terrainNote: "Two Nile canals with staggered bridges: your route must zig-zag.",
+        enemy: { emp: "rome", army: { legionary: 20, equites: 10, ballista: 4 }, scale: 1.15 },
+        map: { ground: "grass",
+               rivers: [{ pts: [[0, 0.45], [1, 0.45]], w: 0.03 }, { pts: [[0, 0.535], [1, 0.535]], w: 0.03 }],
+               bridges: [{ x: 0.2, y: 0.45, w: 0.1, h: 0.06 }, { x: 0.62, y: 0.45, w: 0.1, h: 0.06 }, { x: 0.4, y: 0.535, w: 0.1, h: 0.06 }, { x: 0.84, y: 0.535, w: 0.1, h: 0.06 }],
+               lakes: [{ x: 0.07, y: 0.492, rx: 0.05, ry: 0.016 }] } },
+      { id: "constantinople", act: 2, name: "Constantinople", year: "What if · AD 368", lon: 29.0, lat: 41.0, flag: [4, -12],
+        blurb: "Constantine's new capital commands the straits between Europe and Asia. Its defenders wait behind a moat and wall.",
+        terrainNote: "A moat with three bridges, each leading to a gate in the wall.",
+        enemy: { emp: "rome", army: { legionary: 22, equites: 10, ballista: 4 }, scale: 1.35 },
+        map: { ground: "grass",
+               rivers: [{ pts: [[0, 0.49], [1, 0.49]], w: 0.03 }],
+               bridges: [{ x: 0.2, y: 0.49, w: 0.08, h: 0.06 }, { x: 0.5, y: 0.49, w: 0.08, h: 0.06 }, { x: 0.8, y: 0.49, w: 0.08, h: 0.06 }],
+               walls: [{ x0: 0, y0: 0.42, x1: 0.16, y1: 0.445 }, { x0: 0.24, y0: 0.42, x1: 0.46, y1: 0.445 }, { x0: 0.54, y0: 0.42, x1: 0.76, y1: 0.445 }, { x0: 0.84, y0: 0.42, x1: 1, y1: 0.445 }] } },
+      { id: "athens", act: 2, name: "Athens", year: "What if · AD 370", lon: 23.7, lat: 38.0, flag: [-10, 10],
+        blurb: "The schools of Athens and the cities of Greece rally to Rome. Their army holds the hills beyond a winding stream.",
+        terrainNote: "A winding stream with two bridges through rocky hills.",
+        enemy: { emp: "rome", army: { legionary: 24, equites: 10, ballista: 4 }, scale: 1.25 },
+        map: { ground: "steppe",
+               rivers: [{ pts: [[0, 0.4], [0.5, 0.5], [1, 0.44]], w: 0.035 }],
+               bridges: [{ x: 0.28, y: 0.456, w: 0.1, h: 0.08 }, { x: 0.76, y: 0.469, w: 0.1, h: 0.08 }],
+               rocks: [{ x: 0.12, y: 0.52, r: 0.03 }, { x: 0.18, y: 0.55, r: 0.022 }, { x: 0.5, y: 0.57, r: 0.03 }, { x: 0.55, y: 0.38, r: 0.025 },
+                       { x: 0.9, y: 0.55, r: 0.028 }, { x: 0.4, y: 0.41, r: 0.02 }] } },
+      { id: "rome", act: 2, name: "Rome", year: "What if · AD 372", lon: 12.5, lat: 41.9, flag: [8, 12],
+        blurb: "The Eternal City. Cross the Tiber, break the Aurelian Walls, and Rome falls to Persia.",
+        terrainNote: "The Tiber with three bridges, then the Aurelian Walls with three gates. Rome's largest army.",
+        enemy: { emp: "rome", army: { legionary: 26, equites: 10, ballista: 4 }, scale: 1.72 },
+        map: { ground: "grass",
+               rivers: [{ pts: [[0, 0.52], [0.3, 0.545], [0.55, 0.5], [0.8, 0.56], [1, 0.53]], w: 0.045 }],
+               bridges: [{ x: 0.18, y: 0.53, w: 0.09, h: 0.085 }, { x: 0.55, y: 0.5, w: 0.09, h: 0.085 }, { x: 0.88, y: 0.548, w: 0.09, h: 0.085 }],
+               walls: [{ x0: 0, y0: 0.41, x1: 0.14, y1: 0.435 }, { x0: 0.22, y0: 0.41, x1: 0.51, y1: 0.435 }, { x0: 0.59, y0: 0.41, x1: 0.84, y1: 0.435 }, { x0: 0.92, y0: 0.41, x1: 1, y1: 0.435 }] } },
     ],
   },
 };
 
 // ---------- Historical map (around AD 300), drawn as pixel art from rough lon/lat outlines.
-const MAP_BOUNDS = { lon0: 26, lon1: 66, lat0: 21.5, lat1: 44, w: 160, h: 90 };   // 4 pixels per degree
-const LAKES = [[42.9, 38.6, 0.7, 0.35], [45.6, 37.6, 0.35, 0.6], [45.3, 40.4, 0.4, 0.2]];   // Van, Urmia, Sevan: lon, lat, rx, ry
+const MAP_BOUNDS = { lon0: 10, lon1: 66, lat0: 21.5, lat1: 46, w: 224, h: 98 };   // 4 pixels per degree
+const LAKES = [[42.9, 38.6, 0.7, 0.35], [45.6, 37.6, 0.35, 0.6], [45.3, 40.4, 0.4, 0.2], [28.2, 40.75, 1.15, 0.3]];   // Van, Urmia, Sevan, Marmara
+// Islands sit inside the sea outlines: [owner, outline]
+const ISLANDS = [
+  ["rome", [[12.4, 37.9], [13.3, 38.2], [15.6, 38.3], [15.1, 37.5], [15.2, 36.7], [14.3, 36.9], [12.5, 37.6]]],                 // Sicily
+  ["rome", [[23.5, 35.6], [24.5, 35.45], [26.3, 35.25], [25.9, 35.0], [24.7, 34.9], [23.6, 35.2]]],                             // Crete
+  ["rome", [[32.3, 35.0], [33.1, 35.4], [34.6, 35.7], [33.9, 35.1], [33.5, 34.6], [32.5, 34.7]]],                               // Cyprus
+  ["rome", [[22.8, 38.9], [23.6, 38.5], [24.6, 38.0], [24.0, 38.6], [23.2, 39.1]]],                                             // Euboea
+  ["rome", [[27.7, 36.5], [28.2, 36.45], [28.2, 35.9], [27.75, 36.1]]],                                                          // Rhodes
+  ["north", [[32.5, 45.4], [33.6, 44.5], [34.6, 44.8], [35.4, 45.0], [36.5, 45.3], [35.2, 45.8], [34.0, 46.1], [33.0, 45.9]]],  // Crimea
+];
 // Map features drawn as texture over the land: [lon0, lon1, lat0, lat1, color, pattern]
 const MAP_TEXTURES = [
   [35, 41.5, 40.3, 41.3, "#4f7a3a", 5],     // Pontic forests
@@ -1033,30 +1097,53 @@ const MAP_TEXTURES = [
   [46.3, 47.9, 30.6, 31.9, "#5a9a8a", 3],   // Mesopotamian marshes
 ];
 const SEAS = [
-  // Mediterranean (east), Aegean, Black Sea, Caspian, Persian Gulf, Gulf of Oman / Arabian Sea, Red Sea
-  [[26, 31.5], [26, 36.9], [27.5, 37.0], [28.5, 36.6], [30.5, 36.4], [32, 36.2], [33.5, 36.2], [34.7, 36.8], [36.1, 36.7], [35.8, 35.6], [35.9, 34.5], [35.2, 33.2], [34.6, 31.8], [34.2, 31.3], [33, 31.1], [32, 31.3], [30.5, 31.5], [29, 30.9], [27, 31.3]],
-  [[26, 36.9], [27.3, 37.4], [26.8, 38.5], [26.9, 39.5], [26.3, 40.2], [26, 40.4]],
-  [[28, 41.3], [29.2, 41.2], [31, 41.1], [33, 41.9], [35, 42.0], [36.5, 41.3], [38.5, 40.9], [40.5, 41.0], [41.6, 41.6], [41.6, 42.6], [40, 43.4], [38.8, 44], [28.6, 44], [28, 43]],
-  [[49.0, 44], [47.5, 43.2], [47.6, 42.5], [48.6, 41.8], [49.2, 41], [49.4, 40], [49.1, 39.2], [48.9, 38.4], [49.0, 37.6], [50.5, 37.0], [52, 36.7], [53.9, 36.9], [54, 37.4], [53.9, 38.9], [53.2, 39.4], [53.7, 40], [52.8, 40.8], [52.8, 41.7], [52.3, 42.2], [51.3, 43.2], [51, 44]],
+  // Mediterranean (with the Tyrrhenian, Ionian, Adriatic and Aegean), Black Sea, Caspian, Persian Gulf,
+  // Gulf of Oman / Arabian Sea, Red Sea
+  [[10, 44.0], [10.5, 43.6], [11, 42.9], [12.2, 41.8], [13.0, 41.25], [14.0, 40.8], [15.0, 40.2], [15.7, 39.6], [16.0, 39.0], [15.65, 38.2],
+   [16.5, 38.6], [17.1, 39.0], [16.6, 39.7], [16.6, 40.1], [17.2, 40.4], [18.0, 39.9], [18.5, 40.2], [17.5, 40.9], [16.9, 41.1], [15.9, 41.6],
+   [16.1, 41.9], [14.7, 42.1], [13.8, 42.8], [13.5, 43.6], [12.3, 44.3], [12.4, 45.4], [13.7, 45.7], [14.3, 45.2], [15.2, 44.2], [16.4, 43.5],
+   [18.1, 42.6], [19.4, 41.8], [19.5, 40.9], [19.4, 40.3], [20.2, 39.4], [21.1, 38.4], [21.6, 37.7], [21.7, 36.8], [22.4, 36.4], [23.0, 36.5],
+   [23.2, 37.3], [23.9, 37.7], [24.1, 38.2], [23.0, 39.4], [22.6, 40.5], [23.8, 40.0], [24.5, 40.9], [25.5, 40.9], [26.0, 40.7], [26.3, 40.1],
+   [26.1, 39.5], [26.9, 39.0], [27.0, 38.4], [27.3, 37.3], [28.0, 36.8],
+   [28.5, 36.6], [30.5, 36.4], [32, 36.2], [33.5, 36.2], [34.7, 36.8], [36.1, 36.7], [35.8, 35.6], [35.9, 34.5], [35.2, 33.2], [34.6, 31.8], [34.2, 31.3],
+   [33, 31.1], [32, 31.3], [30.5, 31.5], [29, 30.9], [27, 31.3], [25, 31.6], [23.2, 32.3], [22.0, 32.9], [20.1, 32.3], [19.5, 30.6], [18.0, 30.8],
+   [16.5, 31.3], [15.2, 32.3], [13.2, 32.9], [11.5, 33.2], [10.2, 33.8], [10.7, 34.7], [11.1, 35.5], [10.6, 36.4], [11.0, 37.0], [10.2, 37.2], [10, 37.3]],
+  [[29.1, 41.2], [31, 41.1], [33, 41.9], [35, 42.0], [36.5, 41.3], [38.5, 40.9], [40.5, 41.0], [41.6, 41.6], [41.6, 42.6], [40, 43.4], [38.8, 44.4],
+   [37.5, 45.0], [36.6, 45.2], [36.5, 46.5], [30.8, 46.5], [30.2, 45.7], [29.7, 45.2], [28.7, 44.2], [28.6, 43.4], [27.9, 42.6], [28.0, 41.7]],
+  [[49.0, 46.5], [49.0, 44], [47.5, 43.2], [47.6, 42.5], [48.6, 41.8], [49.2, 41], [49.4, 40], [49.1, 39.2], [48.9, 38.4], [49.0, 37.6], [50.5, 37.0], [52, 36.7], [53.9, 36.9], [54, 37.4], [53.9, 38.9], [53.2, 39.4], [53.7, 40], [52.8, 40.8], [52.8, 41.7], [52.3, 42.2], [51.3, 43.2], [51, 44], [51.5, 46.5]],
   [[47.9, 30.0], [48.9, 30.2], [50.2, 29.9], [50.7, 29.1], [51.5, 27.9], [52.7, 27.3], [54.6, 26.6], [56.2, 27.2], [56.5, 26.4], [56.1, 26.0], [56.0, 24.5], [55.2, 25.3], [54.2, 24.2], [52.6, 24.1], [51.6, 24.5], [51.3, 25.9], [50.6, 25.7], [50.2, 26.6], [49.6, 27.0], [48.7, 27.9], [48.3, 28.7], [47.9, 29.6]],
-  [[56.4, 26.4], [57.3, 25.8], [58.8, 25.5], [61.6, 25.2], [66, 25.0], [66, 22], [60.0, 22], [59.8, 22.5], [58.6, 23.6], [57.3, 23.9], [56.4, 24.8], [56.3, 25.8]],
-  [[32.4, 30.0], [33.6, 27.9], [35.0, 25.9], [36.5, 23.2], [37.0, 22.0], [38.8, 22.0], [38.3, 24.0], [37.0, 25.6], [35.6, 27.4], [34.8, 29.4], [34.4, 28.0], [33.0, 28.8]],
+  [[56.4, 26.4], [57.3, 25.8], [58.8, 25.5], [61.6, 25.2], [66, 25.0], [66, 21], [60.0, 21], [59.8, 22.5], [58.6, 23.6], [57.3, 23.9], [56.4, 24.8], [56.3, 25.8]],
+  [[32.4, 30.0], [33.6, 27.9], [35.0, 25.9], [36.5, 23.2], [37.2, 21.0], [39.2, 21.0], [38.3, 24.0], [37.0, 25.6], [35.6, 27.4], [34.8, 29.4], [34.4, 28.0], [33.0, 28.8]],
 ];
 const RIVERS = [
   [[38.6, 39.3], [38.3, 38.0], [37.9, 37.0], [38.0, 36.0], [38.8, 35.9], [39.8, 35.6], [40.5, 34.9], [41.5, 34.3], [42.8, 33.6], [43.8, 33.3], [44.5, 32.4], [45.5, 31.6], [46.6, 31.0], [47.6, 30.8], [48.1, 30.3]],   // Euphrates
   [[40.6, 38.4], [41.2, 37.9], [42.3, 37.3], [42.9, 36.5], [43.2, 35.6], [43.8, 34.6], [44.3, 33.6], [44.6, 33.1], [45.6, 32.5], [46.6, 31.8], [47.4, 31.2], [47.9, 30.6]],                                         // Tigris
   [[50.6, 33.0], [49.6, 32.3], [48.9, 31.8], [48.6, 31.0], [48.3, 30.4]],                                                                                                                                       // Karun
+  [[18.5, 45.2], [20, 44.9], [22, 44.6], [24, 43.75], [25.5, 43.65], [27, 44.1], [28, 44.5], [28.8, 45.25], [29.7, 45.2]],                   // Danube
+  [[10, 45.05], [11.3, 45.0], [12.4, 44.95]], [[12.6, 43.3], [12.4, 42.6], [12.5, 42.0], [12.25, 41.75]],                                         // Po, Tiber
+  [[36.6, 36.9], [36.4, 36.2], [36.5, 35.4], [36.4, 34.8]],                                                                                       // Orontes
   [[32.9, 21.5], [32.9, 24.1], [32.7, 25.7], [31.6, 26.3], [30.8, 27.5], [31.2, 29.0], [31.2, 30.1], [30.5, 31.3]], [[31.2, 30.1], [31.9, 31.4]],                                                               // Nile and its delta
 ];
 const MOUNTAINS = [
   [[31, 37.4], [33.5, 37.3], [36, 37.6], [38.5, 38.4], [41, 38.6], [43, 38.2]],            // Taurus
   [[45.2, 35.6], [46.8, 34.0], [48.5, 32.6], [50.5, 31.0], [52.5, 29.6], [54.5, 28.6]],    // Zagros
   [[39.5, 43.4], [42.5, 42.9], [45, 42.5], [47.5, 41.6]],                                   // Caucasus
+  [[10.2, 44.3], [11.6, 43.6], [13.1, 42.7], [14.4, 41.6], [15.6, 40.6], [16.1, 39.5]],      // Apennines
+  [[22.6, 43.1], [24.5, 42.8], [26.8, 42.7]],                                               // Haemus (Balkans)
+  [[15.6, 44.6], [17.3, 43.6], [19.1, 42.6]],                                               // Dinaric Alps
+  [[20.9, 40.4], [21.3, 39.5], [21.9, 38.7]],                                               // Pindus
+  [[10.2, 45.9], [12.2, 46.2], [14.2, 46.3]],                                               // Alps
   [[49.5, 36.6], [51.5, 36.0], [53.5, 36.4], [55.5, 37.0], [57.5, 37.4]],                  // Alborz / Kopet Dag
   [[62, 34.8], [64, 35.0], [65.8, 35.4]],                                                   // Hindu Kush
 ];
 const MAP_LABELS = [
-  { text: "Roman Empire", lon: 30.5, lat: 39.4, cls: "big", color: "#ffe1dc" },
+  { text: "Goths", lon: 25.5, lat: 45.3, cls: "", color: "#fff8e6" },
+  { text: "Sahara", lon: 19, lat: 27, cls: "", color: "#6e5a45" },
+  { text: "Rome", lon: 13.6, lat: 42.6, cls: "city", color: "#fff8e6", dot: [12.5, 41.9], capital: "rome" },
+  { text: "Athens", lon: 24.6, lat: 38.4, cls: "city", color: "#fff8e6", dot: [23.7, 38.0] },
+  { text: "Thessalonica", lon: 22.4, lat: 41.4, cls: "city", color: "#fff8e6", dot: [22.9, 40.6] },
+  { text: "Carthage", lon: 11.6, lat: 36.4, cls: "city", color: "#fff8e6", dot: [10.3, 36.85] },
+  { text: "Beroea", lon: 37.6, lat: 35.7, cls: "city", color: "#fff8e6", dot: [37.2, 36.2] },
   { text: "Armenia", lon: 44.2, lat: 40.6, cls: "", color: "#fff8e6" },
   { text: "Arabia", lon: 41, lat: 27, cls: "", color: "#6e5a45" },
   { text: "Ctesiphon", lon: 45.6, lat: 34.0, cls: "city", color: "#fff8e6", dot: [44.6, 33.1], capital: true },
@@ -1090,13 +1177,18 @@ function pointInPoly(poly, x, y) {
   return inside;
 }
 // Rome's eastern frontier after the Peace of Nisibis (AD 299), as longitude by latitude.
-const ROMAN_FRONTIER = [[44, 41.6], [41.6, 41.6], [40.2, 42.5], [38.5, 43.0], [37.2, 42.6], [36.0, 42.4], [35.2, 41.0], [34.6, 40.5], [33.8, 39.5], [32.5, 38.5], [31.0, 37.5], [29.6, 36.5], [28.5, 35.0], [22, 35.0]];
+const ROMAN_FRONTIER = [[47, 41.6], [44, 41.6], [41.6, 41.6], [40.2, 42.5], [38.5, 43.0], [37.2, 42.6], [36.0, 42.4], [35.2, 41.0], [34.6, 40.5], [33.8, 39.5], [32.5, 38.5], [31.0, 37.5], [29.6, 36.5], [28.5, 35.0], [22, 35.0]];
 const ARABIA_EDGE = [[34, 29.4], [38.5, 32.0], [41, 31.3], [44, 30.6], [46.5, 29.8], [48, 29.2], [50.3, 28.0]];
 const STEPPE_EDGE = [[52.5, 39.6], [54, 38.8], [57, 38.6], [60, 38.6], [63, 39.2], [66, 38.5]];
+const DANUBE = [[18.5, 45.2], [20, 44.9], [22, 44.6], [24, 43.75], [25.5, 43.65], [27, 44.1], [28, 44.5], [28.8, 45.25], [29.8, 45.2]];
 function mapOwner(lon, lat) {
+  for (const [o, poly] of ISLANDS) if (pointInPoly(poly, lon, lat)) return o;
   if (SEAS.some((p) => pointInPoly(p, lon, lat))) return "sea";
   if (LAKES.some(([x, y, rx, ry]) => ((lon - x) / rx) ** 2 + ((lat - y) / ry) ** 2 < 1)) return "sea";
   if (lat > 41.6 && lon > 41.6) return "north";
+  if (lon >= 18.5 && lon < 29.8 && lat > lerpTable(DANUBE, lon)) return "north";                 // Goths beyond the Danube
+  if (lon >= 29.8 && lat > 44.4) return "north";                                                  // steppe north of the Black Sea
+  if (lon < 29.5 && lat < 29.8) return "arabia";                                                  // Sahara
   if (lon < lerpTable(ROMAN_FRONTIER, lat)) return lat < 29.4 && lon > 34.6 ? "arabia" : "rome";
   if (lon > 52.5 && lat > lerpTable(STEPPE_EDGE, lon)) return "north";
   if (lat > 38.6 && lat <= 41.6 && lon < 47.6) return "armenia";
@@ -1121,14 +1213,32 @@ const PROVINCES = [
   ["Hyrcania", 54.6, 37.0, 4], ["Parthia", 58.6, 36.4, 4], ["Merv", 62.0, 37.8, 4], ["Mazun", 57.6, 23.7, 4], ["Hagar", 50.0, 25.4, 4],
 ];
 const CONQUESTS = ["Persis", "Asorestan, Mesene, Khuzestan and Kerman", "Adiabene, Media, Spahan and Sakastan",
-                   "Armenia, Atropatene, Rey, Kushanshahr and Makran", "Hyrcania, Parthia, Merv, Mazun and Hagar", "Nisibis and Singara, ceded by Rome"];
+                   "Armenia, Atropatene, Rey, Kushanshahr and Makran", "Hyrcania, Parthia, Merv, Mazun and Hagar", "Nisibis and Singara, ceded by Rome",
+                   "Syria, Phoenicia, Palaestina, Arabia Petraea and Osroene", "Egypt, the Thebaid, Libya, Cyrenaica and Cyprus",
+                   "Thrace, Anatolia and Moesia", "Greece, Macedonia, Crete, Dalmatia and Pannonia", "Italy, Sicily and Africa: Rome itself"];
+// Act II (what if): Rome's provinces fall in a sweep from the Syrian frontier to Rome itself.
+const ROMAN_PROVINCES = [
+  ["Syria", 36.6, 36.0, 6], ["Phoenicia", 36.3, 33.6, 6], ["Palaestina", 35.2, 31.6, 6], ["Arabia Petraea", 35.8, 30.2, 6], ["Osroene", 38.8, 37.3, 6],
+  ["Aegyptus", 30.4, 30.4, 7], ["Thebaid", 32.5, 26.0, 7], ["Libya", 25.2, 31.0, 7], ["Cyrenaica", 21.8, 32.4, 7], ["Cyprus", 33.3, 35.1, 7],
+  ["Thrace", 27.4, 41.6, 8], ["Bithynia", 30.4, 40.5, 8], ["Asia", 28.0, 38.4, 8], ["Galatia", 32.9, 39.9, 8], ["Cappadocia", 35.6, 38.7, 8],
+  ["Cilicia", 34.4, 37.1, 8], ["Lycia", 30.3, 36.8, 8], ["Pontus", 37.6, 40.6, 8], ["Moesia", 27.0, 43.4, 8], ["Isauria", 32.4, 37.5, 8],
+  ["Macedonia", 22.6, 40.9, 9], ["Achaea", 22.6, 37.9, 9], ["Epirus", 20.5, 39.8, 9], ["Thessaly", 22.3, 39.5, 9], ["Crete", 24.9, 35.3, 9],
+  ["Dalmatia", 17.0, 43.8, 9], ["Upper Moesia", 21.6, 44.0, 9], ["Dacia", 23.2, 42.9, 9], ["Praevalitana", 19.7, 42.3, 9], ["Pannonia", 17.5, 45.5, 9],
+  ["Italia", 12.6, 41.9, 10], ["Aemilia", 11.2, 44.4, 10], ["Venetia", 12.2, 45.6, 10], ["Campania", 14.7, 41.0, 10], ["Apulia", 16.4, 41.0, 10],
+  ["Bruttium", 16.3, 39.2, 10], ["Sicilia", 14.1, 37.6, 10], ["Africa", 10.3, 36.3, 10], ["Byzacena", 10.6, 35.0, 10], ["Tripolitania", 13.2, 31.8, 10],
+];
+function romanProvinceAt(lon, lat) {
+  let best = null, bd = Infinity;
+  for (const p of ROMAN_PROVINCES) { const d = ((lon - p[1]) * 0.85) ** 2 + (lat - p[2]) ** 2; if (d < bd) { bd = d; best = p; } }
+  return best;
+}
 function provinceAt(lon, lat) {
   let best = null, bd = Infinity;
   for (const p of PROVINCES) { const d = ((lon - p[1]) * 0.85) ** 2 + (lat - p[2]) ** 2; if (d < bd) { bd = d; best = p; } }
   return best;
 }
 function conquestStage(lon, lat, owner) {
-  if (owner === "rome") return lon > 40.4 && (Math.hypot(lon - 41.2, lat - 37.1) < 1.15 || Math.hypot(lon - 42.0, lat - 36.2) < 1.15) ? 5 : -1;
+  if (owner === "rome") return lon > 40.4 && (Math.hypot(lon - 41.2, lat - 37.1) < 1.15 || Math.hypot(lon - 42.0, lat - 36.2) < 1.15) ? 5 : romanProvinceAt(lon, lat)[3];
   if (owner === "armenia") return 3;
   if (owner !== "persia") return -1;
   return provinceAt(lon, lat)[3];
@@ -1156,15 +1266,18 @@ function worldMapBase(wins) {
     if (o === "persia") { sx += x; sy += y; sn++; }
   }
   const at = (x, y) => (x < 0 || y < 0 || x >= w || y >= h ? null : own[y * w + x]);
+  // which province a pixel belongs to (Persian or Roman), for the faint outlines
+  const provKey = (x, y) => { const lon = lonAt(x), lat = latAt(y); return mapOwner(lon, lat) === "rome" ? romanProvinceAt(lon, lat)[0] : provinceAt(lon, lat)[0]; };
+  let rx = 0, ry = 0, rn = 0;
+  for (let i = 0; i < own.length; i++) if (own[i] === "rome") { rx += i % w; ry += (i / w) | 0; rn++; }
   for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
     const o = at(x, y), [base, dark] = OWNER_COLORS[o];
     let col = base;
     const nb = [at(x + 1, y), at(x - 1, y), at(x, y + 1), at(x, y - 1)].filter(Boolean);
     if (o === "sea") { if (nb.some((n) => n !== "sea")) col = dark; else if ((x * 3 + y * 5) % 13 === 0) col = "#5d8fcc"; }
-    else if (nb.some((n) => n === "sea")) col = dark;                                     // coastline
-    else if (nb.some((n) => n !== o && n !== "sea") && (o === "persia" || o === "rome" || ((x + y) % 2 === 0))) col = INK;   // frontier
+    else if (nb.some((n) => n !== o && n !== "sea") && (o === "persia" || o === "rome" || ((x + y) % 2 === 0))) col = INK;   // frontier (coasts are drawn on the sea side)
     else if ((o === "persia" || o === "unclaimed") && x + 1 < w && y + 1 < h && (at(x + 1, y) === o || at(x, y + 1) === o)
-             && (provinceAt(lonAt(x), latAt(y)) !== provinceAt(lonAt(x + 1), latAt(y)) || provinceAt(lonAt(x), latAt(y)) !== provinceAt(lonAt(x), latAt(y + 1)))
+             && (provKey(x, y) !== provKey(x + 1, y) || provKey(x, y) !== provKey(x, y + 1))
              && (x + y) % 2 === 0) col = o === "persia" ? "#6e4b9a" : "#8f8264";               // province outlines
     else if (o === "armenia" && (x + y) % 4 === 0) col = "#d9c08a";                       // buffer kingdom stripes
     else if ((o === "arabia" || o === "north" || o === "unclaimed") && (x * 7 + y * 11) % 17 === 0) col = dark;
@@ -1194,9 +1307,9 @@ function worldMapBase(wins) {
   for (const l of MAP_LABELS) if (l.dot) {
     const [x, y] = toMapPx(...l.dot);
     g.fillStyle = INK; g.fillRect(Math.round(x) - 1, Math.round(y) - 1, l.capital ? 3 : 2, l.capital ? 3 : 2);
-    g.fillStyle = l.capital ? "#ffe38a" : "#fff8e6"; g.fillRect(Math.round(x), Math.round(y), 1, 1);
+    g.fillStyle = l.capital === "rome" && wins < 10 ? "#ff6b5f" : l.capital ? "#ffe38a" : "#fff8e6"; g.fillRect(Math.round(x), Math.round(y), 1, 1);
   }
-  return (WORLD_MAP_CACHE[wins] = { canvas: c, cx: sn ? sx / sn : w / 2, cy: sn ? sy / sn : h / 2 });
+  return (WORLD_MAP_CACHE[wins] = { canvas: c, cx: sn ? sx / sn : w / 2, cy: sn ? sy / sn : h / 2, romeN: rn, rcx: rn ? rx / rn : 0, rcy: rn ? ry / rn : 0 });
 }
 
 // =====================================================================  BATTLE
@@ -1277,11 +1390,23 @@ class Battle {
       const pts = u.nav.pts;
       if (pts) {
         while (u.nav.i < pts.length - 1 && Math.hypot(pts[u.nav.i].x - u.x, pts[u.nav.i].y - u.y) < 10) u.nav.i++;
+        // cut the corner as soon as the next waypoint is in plain view
+        if (u.nav.i < pts.length - 1 && T.los(u.x, u.y, pts[u.nav.i + 1].x, pts[u.nav.i + 1].y)) u.nav.i++;
         tx = pts[u.nav.i].x; ty = pts[u.nav.i].y;
       }
     }
     const dx = tx - u.x, dy = ty - u.y, d = Math.hypot(dx, dy) || 1, s = Math.min(step, d);
-    u.x += (dx / d) * s; u.y += (dy / d) * s;
+    let mx = dx / d, my = dy / d;
+    if (T && T.blocked(u.x + mx * (s + 4), u.y + my * (s + 4))) {
+      // slide: try turning a little either way (toward whichever side is open) before giving up
+      let found = false;
+      for (const a of [0.45, -0.45, 0.9, -0.9, 1.35, -1.35]) {
+        const c = Math.cos(a), sn = Math.sin(a), rx = mx * c - my * sn, ry = mx * sn + my * c;
+        if (!T.blocked(u.x + rx * (s + 4), u.y + ry * (s + 4))) { mx = rx; my = ry; found = true; break; }
+      }
+      if (!found) { u.bumped = true; u.want = (u.want || 0) + s; return dx; }
+    }
+    u.x += mx * s; u.y += my * s;
     u.want = (u.want || 0) + s;
     return dx;
   }
@@ -1394,6 +1519,18 @@ class Battle {
     const routeBuffer = this.plan.loose ? 120 : 40;   // how close an enemy must be to pull troops off their route
     for (const u of live) {
       if (u.regen) u.hp = Math.min(u.maxHp, u.hp + u.regen * dt);
+      // knockback from big impacts (never into obstacles), then a short stun
+      if (u.kvx || u.kvy) {
+        const nx = u.x + u.kvx * dt, ny = u.y + u.kvy * dt;
+        if (!this.terrain || !this.terrain.blocked(nx, ny)) { u.x = nx; u.y = ny; } else { u.kvx = u.kvy = 0; }
+        const fall = Math.exp(-7 * dt); u.kvx *= fall; u.kvy *= fall;
+        if (Math.abs(u.kvx) + Math.abs(u.kvy) < 4) u.kvx = u.kvy = 0;
+      }
+      if (u.stun > 0) { u.stun -= dt; continue; }
+      // A siege engine with enemy troops on top of it can't fire until they're dead or gone.
+      if (u.U.mount === "siege") {
+        u.disabled = live.some((v) => v.side !== u.side && !v.dead && !(v.range > 0) && Math.hypot(v.x - u.x, v.y - u.y) < u.rad + v.rad + 10);
+      }
       u.retarget -= dt;
       if (!u.target || u.target.dead || u.retarget <= 0) {
         let best = null, bd = Infinity;
@@ -1423,8 +1560,13 @@ class Battle {
         if (!u.engaged) {
           let gx = g.x + u.form.dx, gy = g.y + u.form.dy;
           // squeeze through bridges and gates: follow the anchor when your spot is blocked or cut off from it
-          u.squeeze = !!(this.terrain && (this.terrain.blocked(gx, gy) || !this.terrain.los(g.x, g.y, gx, gy)));
-          if (u.squeeze) { gx = g.x; gy = g.y; }   // squeeze through bridges and gates
+          // Squeeze through bridges and gates: pull your spot in toward the anchor just far enough to be
+          // open ground the anchor can see, so the block narrows into a column and fans out again.
+          u.squeeze = false;
+          if (this.terrain) for (const f of [1, 0.7, 0.45, 0.25, 0]) {
+            const cx = g.x + u.form.dx * f, cy = g.y + u.form.dy * f;
+            if (f === 0 || (!this.terrain.blocked(cx, cy) && this.terrain.los(g.x, g.y, cx, cy))) { u.squeeze = f < 1; gx = cx; gy = cy; break; }
+          }
           const sx = gx - u.x, sy = gy - u.y, sd = Math.hypot(sx, sy);
           if (sd > 2) {
             const step = Math.min(sd, u.speed * dt);
@@ -1448,17 +1590,23 @@ class Battle {
         const step = u.speed * dt;
         this.steer(u, tg.x, tg.y, step);
       } else {
+        // archers don't plant themselves on a bridge or in a gate: they keep moving through while shooting
+        if (u.range && this.terrain && this.terrain.choke(u.x, u.y)) this.steer(u, tg.x, tg.y, u.speed * dt * 0.8);
         u.cdLeft -= dt;
-        if (u.cdLeft <= 0) {
+        if (u.cdLeft <= 0 && !u.disabled) {
           u.cdLeft = u.cd * rand(0.9, 1.1);
           FX.attack(u, dx, dy, !!u.U.proj);
           if (u.U.mount === "siege") {
             // Artillery fires at the ground where the target stands now; the shot takes about a
             // second to land, so troops can walk out of the marked spot.
-            const ballista = u.U.siege === "ballista";
-            this.shots.push({ from: u, ground: true, x0: u.x + u.facing * 6, y0: u.y - 18, x1: tg.x + rand(-8, 8), y1: tg.y + rand(-8, 8),
-                              t: 0, dur: ballista ? 0.7 : 1.0, kind: u.U.proj, dmg: u.atk, spin: rand(-12, 12),
-                              lob: ballista ? 16 : 60 + dist * 0.25, radius: u.splash || 24 });
+            if (u.U.siege === "ballista") {
+              // a bolt that flies flat and fast through the whole line, hitting everyone in its path
+              this.shots.push({ from: u, pierce: true, x: u.x + u.facing * 8, y: u.y - 12, dx: dx / dist, dy: dy / dist, speed: 560,
+                                left: (u.range || 300) + 90, hits: new Set(), dmg: u.atk, kind: "bolt", t: 0 });
+            } else {
+              this.shots.push({ from: u, ground: true, x0: u.x + u.facing * 6, y0: u.y - 18, x1: tg.x + rand(-8, 8), y1: tg.y + rand(-8, 8),
+                                t: 0, dur: 1.0, kind: u.U.proj, dmg: u.atk, spin: rand(-12, 12), lob: 60 + dist * 0.25, radius: u.splash || 24 });
+            }
             FX.recoil(u, dx, dy, 70);
             this.burst(u.x + u.facing * 10, u.y - 14, 6, ["#d8d2c4", "#efe6cf"], 35, 15, 0.5);
           } else if (u.U.proj) {
@@ -1475,8 +1623,10 @@ class Battle {
       const a = live[i], b = live[j]; if (a.dead || b.dead) continue;
       const dx = b.x - a.x, dy = b.y - a.y, min = (a.rad + b.rad) * 0.85, d2 = dx * dx + dy * dy;
       if (d2 > 0 && d2 < min * min) {
-        const d = Math.sqrt(d2), push = (min - d) / 2, nx = dx / d, ny = dy / d;
-        a.x -= nx * push; a.y -= ny * push; b.x += nx * push; b.y += ny * push;
+        const d = Math.sqrt(d2), push = (min - d) / 2, nx = dx / d, ny = dy / d, T = this.terrain;
+        const aOk = !T || !T.blocked(a.x - nx * push * 2, a.y - ny * push * 2), bOk = !T || !T.blocked(b.x + nx * push * 2, b.y + ny * push * 2);
+        const pa = aOk ? (bOk ? push : push * 2) : 0, pb = bOk ? (aOk ? push : push * 2) : 0;
+        a.x -= nx * pa; a.y -= ny * pa; b.x += nx * pb; b.y += ny * pb;
       }
     }
     for (const u of live) { u.x = Math.max(12, Math.min(this.W - 12, u.x)); u.y = Math.max(44, Math.min(this.H - 6, u.y)); }
@@ -1511,6 +1661,20 @@ class Battle {
     // projectiles
     for (const s of this.shots) {
       s.t += dt;
+      if (s.pierce) {   // ballista bolt: damage drops by a quarter with each troop it passes through
+        const step = Math.min(s.left, s.speed * dt), x1 = s.x + s.dx * step, y1 = s.y + s.dy * step;
+        for (const u of this.units) {
+          if (u.dead || u.side === s.from.side || s.hits.has(u)) continue;
+          if (distToSeg(u.x, u.y - 10, s.x, s.y, x1, y1) < u.rad * 0.6 + 6) {
+            this.hit(s.from, u, s.dmg * Math.pow(0.75, s.hits.size), 45, { x: u.x - s.dx * 10, y: u.y - s.dy * 10 });
+            if (!u.U.mount || u.U.mount === "horse") { u.kvx = (u.kvx || 0) + s.dx * 60; u.kvy = (u.kvy || 0) + s.dy * 60; }
+            s.hits.add(u);
+          }
+        }
+        s.x = x1; s.y = y1; s.left -= step;
+        if (s.left <= 0 || s.hits.size >= 5) { s.done = true; this.burst(s.x, s.y + 8, 4, ["#9c8a55", "#c9c2b6"], 30, 10, 0.3); }
+        continue;
+      }
       if (!s.ground && !s.target.dead) { s.x1 = s.target.x; s.y1 = s.target.y - 10; }
       if (s.t >= s.dur && !s.done) {
         s.done = true;
@@ -1555,7 +1719,14 @@ class Battle {
     for (const u of this.units) {
       if (u.dead || u.side === s.from.side) continue;
       const d = Math.hypot(u.x - s.x1, u.y - s.y1);
-      if (d < s.radius + u.rad * 0.5) this.hit(s.from, u, s.dmg * (1 - 0.5 * Math.min(1, d / s.radius)), 70, from);
+      if (d < s.radius + u.rad * 0.5) {
+        this.hit(s.from, u, s.dmg * (1 - 0.5 * Math.min(1, d / s.radius)), 70, from);
+        // the blast throws troops back (heavy beasts and engines barely budge) and stuns them briefly
+        const k = Math.max(0, 1 - d / (s.radius + u.rad)), mass = u.U.mount === "elephant" ? 0.25 : u.U.mount === "siege" ? 0.15 : u.U.mount ? 0.6 : 1;
+        const nx = (u.x - s.x1) / (d || 1), ny = (u.y - s.y1) / (d || 1), push = (60 + 150 * k) * mass;
+        u.kvx = (u.kvx || 0) + nx * push; u.kvy = (u.kvy || 0) + ny * push;
+        u.stun = Math.max(u.stun || 0, (0.15 + 0.35 * k) * mass);
+      }
     }
     this.burst(s.x1, s.y1 - 4, s.kind === "rock" ? 16 : 8, ["#9c8a55", "#7a6a40", "#c9c2b6", "#ffe38a"], 90, 45, 0.7);
     this.shake = Math.max(this.shake, s.kind === "rock" ? 3 : 1.5);
@@ -1620,6 +1791,11 @@ class Battle {
       if (!u.dead) { g.fillStyle = u.side === 0 ? "#3f7be0" : "#d8383e"; g.fillRect(x + Math.round(pose.ox) - (sw >> 1) + 1, y + 1, sw - 2, 1); }
       const frame = u.U.mount && u.U.mount !== "siege" && u.fx.moving > 0 ? Math.floor(u.fx.hop / Math.PI) & 1 : 0;
       drawSprite(g, u.spr, x, y, pose, u.facing, frame);
+      if (!u.dead && u.disabled && Math.floor(this.t * 4) % 2 === 0) {   // engine overrun: blinking "!"
+        const bx = x + Math.round(pose.ox), by = y - u.spr.ay - 13 + Math.round(pose.oy);
+        g.fillStyle = INK; g.fillRect(bx - 2, by - 1, 5, 10);
+        g.fillStyle = "#e03c31"; g.fillRect(bx - 1, by, 3, 5); g.fillRect(bx - 1, by + 6, 3, 2);
+      }
       if (!u.dead && u.hp < u.maxHp) {
         const w = u.U.mount === "elephant" ? 18 : 10, top = y - u.spr.ay - 3 + Math.round(pose.oy);
         g.fillStyle = INK; g.fillRect(x - (w >> 1) - 1, top - 1, w + 2, 3);
@@ -1627,6 +1803,12 @@ class Battle {
       }
     }
     for (const s of this.shots) {
+      if (s.pierce) {
+        const img = SHOT_IMGS.bolt;
+        g.save(); g.translate(Math.round(s.x / PX), Math.round(s.y / PX)); g.rotate(Math.atan2(s.dy, s.dx));
+        g.drawImage(img, -img.width + 1, -(img.height >> 1)); g.restore();
+        continue;
+      }
       const k = Math.min(1, s.t / s.dur), lob = s.lob ?? (s.kind === "bolt" ? 10 : 30);
       const at = (q) => [s.x0 + (s.x1 - s.x0) * q, s.y0 + (s.y1 - s.y0) * q - lob * Math.sin(Math.PI * q)];
       const [x, y] = at(k), [nx, ny] = at(Math.min(1, k + 0.05));
@@ -2014,12 +2196,14 @@ function showCampaign() {
   show("campaign");
   $("cmpTitle").textContent = C.title; $("cmpYears").textContent = `Campaign · ${C.years}`; $("cmpGold").textContent = run.gold;
   const done = run.stageIdx >= C.stages.length;
-  $("stageList").innerHTML = (done ? `<div class="panel unlock">All five battles won. Persia stands triumphant over Rome!
+  $("stageList").innerHTML = (done ? `<div class="panel unlock">All ten battles won. Rome has fallen and the Sasanian banner flies over the Eternal City!
       <div style="margin-top:8px"><button class="btn small" style="--c: var(--blue)" id="cmpRestart">Start the campaign again</button></div></div>` : `<p class="blurb" style="margin:0; font-weight:600">${C.intro}</p>`)
     + C.stages.map((st, i) => {
       const state = i < run.stageIdx ? "won" : i === run.stageIdx ? "current" : "locked";
       const total = Object.values(st.enemy.army).reduce((a, b) => a + b, 0);
-      return `<div class="panel stage ${state}" id="stage-${i}">
+      const actHead = i === 0 ? `<div class="eyebrow" style="margin-top:4px">Act I · Rise of the Sasanians (historical)</div>`
+        : st.act === 2 && C.stages[i - 1].act !== 2 ? `<div class="eyebrow" style="margin-top:8px">Act II · The March on Rome (what if)</div>` : "";
+      return actHead + `<div class="panel stage ${state}" id="stage-${i}">
         <div class="head"><span class="num">${state === "won" ? "✓" : i + 1}</span>
           <div><div class="eyebrow">${st.year} · ${state === "won" ? "Victory" : state === "current" ? "Next battle" : "Locked"}</div><h3>Battle of ${st.name}</h3></div></div>
         ${state === "current" ? `<p>${st.blurb}</p><p class="terrain">Terrain: ${st.terrainNote} Enemy: ${total} troops of the ${EMPIRES[st.enemy.emp].name}.</p>
@@ -2043,6 +2227,7 @@ function drawCampaignMap() {
   const W = MAP_BOUNDS.w, H = MAP_BOUNDS.h, pos = (x, y) => `left:${(x / W) * 100}%;top:${(y / H) * 100}%`;
   const labels = () => {
     $("mapLabels").innerHTML = MAP_LABELS.filter((l) => l.text).map((l) => { const [x, y] = toMapPx(l.lon, l.lat); return `<span class="map-label ${l.cls}" style="${pos(x, y)};color:${l.color}">${l.text}</span>`; }).join("")
+      + (target.romeN > 30 ? `<span class="map-label big" style="${pos(target.rcx, target.rcy)};color:#ffe1dc">Roman Empire</span>` : "")
       + (wins >= 2 ? `<span class="map-label big" style="${pos(...toMapPx(55.6, 32.1))};color:#efe0ff">Sasanian Empire</span>`
                    : `<span class="map-label big" style="${pos(target.cx, target.cy + 3)};color:#efe0ff">Persia</span>`)
       + C.stages.map((st, i) => {
@@ -2050,7 +2235,7 @@ function drawCampaignMap() {
         return `<button class="map-flag ${state}" data-stage="${i}" style="${pos(x + st.flag[0], y + st.flag[1])}" aria-label="Battle of ${st.name}">${state === "won" ? "✓" : i + 1}</button>`;
       }).join("");
   };
-  const scrollMapTo = (px) => { $("mapWrap").scrollLeft = (px / W) * 480 - $("mapWrap").clientWidth / 2; };
+  const scrollMapTo = (px) => { $("mapWrap").scrollLeft = (px / W) * $("worldMap").clientWidth - $("mapWrap").clientWidth / 2; };
   labels();
   cancelAnimationFrame(mapAnim); clearTimeout(mapAnim); $("campaign").style.overflowY = "";
   if (from >= wins) {
@@ -2123,7 +2308,7 @@ function finishCampaignBattle(won, survivors, E) {
     $("resultPanel").innerHTML = `
       <div class="eyebrow">Battle of ${st.name} · ${st.year}</div>
       <h2 style="color: var(--green)">Victory!</h2>
-      <p>${last ? "Rome's last great invasion is broken. The campaign is won!" : `The ${E.name} is driven back. ${survivors} of your troops still stand.`}</p>
+      <p>${last ? "Rome has fallen. The campaign is won!" : st.id === "ctesiphon" ? "Rome's last great invasion is broken. Now Persia marches west..." : `The ${E.name} is driven back. ${survivors} of your troops still stand.`}</p>
       <p style="color:#4a2a72">New lands: ${CONQUESTS[run.stageIdx]}.</p>
       <div class="gold"><span class="coin"></span>+${reward} gold</div>
       <button class="btn" style="--c: var(--blue)" id="spoilsBtn">CLAIM SPOILS</button>`;
