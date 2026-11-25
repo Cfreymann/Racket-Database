@@ -1185,12 +1185,20 @@ const ROMAN_FRONTIER = [[47, 41.6], [44, 41.6], [41.6, 41.6], [40.2, 42.5], [38.
 const ARABIA_EDGE = [[34, 29.4], [38.5, 32.0], [41, 31.3], [44, 30.6], [46.5, 29.8], [48, 29.2], [50.3, 28.0]];
 const STEPPE_EDGE = [[52.5, 39.6], [54, 38.8], [57, 38.6], [60, 38.6], [63, 39.2], [66, 38.5]];
 const DANUBE = [[18.5, 45.2], [20, 44.9], [22, 44.6], [24, 43.75], [25.5, 43.65], [27, 44.1], [28, 44.5], [28.8, 45.25], [29.8, 45.2]];
-function mapOwner(lon, lat) {
-  for (const [o, poly] of ISLANDS) if (pointInPoly(poly, lon, lat)) return o;
-  if (SEAS.some((p) => pointInPoly(p, lon, lat))) return "sea";
-  if (LAKES.some(([x, y, rx, ry]) => ((lon - x) / rx) ** 2 + ((lat - y) / ry) ** 2 < 1)) return "sea";
+// Smooth, low-frequency wobble (in degrees) so land borders curve like real frontiers instead of
+// running in ruler-straight lines. Coasts and rivers are not warped.
+function borderWarp(lon, lat) {
+  const n1 = Math.sin(lon * 0.9 + lat * 0.4) * 0.5 + Math.sin(lon * 0.37 - lat * 1.3 + 1.7) * 0.35 + Math.sin(lon * 2.3 + lat * 1.9 + 4.2) * 0.18;
+  const n2 = Math.sin(lat * 0.8 - lon * 0.5 + 2.1) * 0.5 + Math.sin(lat * 1.4 + lon * 0.33 + 0.6) * 0.35 + Math.sin(lat * 2.6 - lon * 1.7 + 3.3) * 0.18;
+  return [lon + n1 * 0.75, lat + n2 * 0.75];
+}
+function mapOwner(lon0, lat0) {
+  for (const [o, poly] of ISLANDS) if (pointInPoly(poly, lon0, lat0)) return o;
+  if (SEAS.some((p) => pointInPoly(p, lon0, lat0))) return "sea";
+  if (LAKES.some(([x, y, rx, ry]) => ((lon0 - x) / rx) ** 2 + ((lat0 - y) / ry) ** 2 < 1)) return "sea";
+  if (lon0 >= 18.5 && lon0 < 29.8 && lat0 > lerpTable(DANUBE, lon0)) return "north";               // Goths beyond the Danube (a river: not warped)
+  const [lon, lat] = borderWarp(lon0, lat0);
   if (lat > 41.6 && lon > 41.6) return "north";
-  if (lon >= 18.5 && lon < 29.8 && lat > lerpTable(DANUBE, lon)) return "north";                 // Goths beyond the Danube
   if (lon >= 29.8 && lat > 44.4) return "north";                                                  // steppe north of the Black Sea
   if (lon < 29.5 && lat < 29.8) return "arabia";                                                  // Sahara
   if (lon < lerpTable(ROMAN_FRONTIER, lat)) return lat < 29.4 && lon > 34.6 ? "arabia" : "rome";
@@ -1231,18 +1239,23 @@ const ROMAN_PROVINCES = [
   ["Italia", 12.6, 41.9, 10], ["Aemilia", 11.2, 44.4, 10], ["Venetia", 12.2, 45.6, 10], ["Campania", 14.7, 41.0, 10], ["Apulia", 16.4, 41.0, 10],
   ["Bruttium", 16.3, 39.2, 10], ["Sicilia", 14.1, 37.6, 10], ["Africa", 10.3, 36.3, 10], ["Byzacena", 10.6, 35.0, 10], ["Tripolitania", 13.2, 31.8, 10],
 ];
-function romanProvinceAt(lon, lat) {
+function romanProvinceAt(lon0, lat0) {
+  const [lon, lat] = borderWarp(lon0, lat0);
   let best = null, bd = Infinity;
   for (const p of ROMAN_PROVINCES) { const d = ((lon - p[1]) * 0.85) ** 2 + (lat - p[2]) ** 2; if (d < bd) { bd = d; best = p; } }
   return best;
 }
-function provinceAt(lon, lat) {
+function provinceAt(lon0, lat0) {
+  const [lon, lat] = borderWarp(lon0, lat0);
   let best = null, bd = Infinity;
   for (const p of PROVINCES) { const d = ((lon - p[1]) * 0.85) ** 2 + (lat - p[2]) ** 2; if (d < bd) { bd = d; best = p; } }
   return best;
 }
 function conquestStage(lon, lat, owner) {
-  if (owner === "rome") return lon > 40.4 && (Math.hypot(lon - 41.2, lat - 37.1) < 1.15 || Math.hypot(lon - 42.0, lat - 36.2) < 1.15) ? 5 : romanProvinceAt(lon, lat)[3];
+  if (owner === "rome") {
+    const [wl, wa] = borderWarp(lon, lat);
+    return wl > 40.4 && (Math.hypot(wl - 41.2, wa - 37.1) < 1.15 || Math.hypot(wl - 42.0, wa - 36.2) < 1.15) ? 5 : romanProvinceAt(lon, lat)[3];
+  }
   if (owner === "armenia") return 3;
   if (owner !== "persia") return -1;
   return provinceAt(lon, lat)[3];
@@ -1255,8 +1268,6 @@ function campaignOwner(lon, lat, wins) {
   return o === "persia" ? "unclaimed" : o;
 }
 const toMapPx = (lon, lat) => [((lon - MAP_BOUNDS.lon0) / (MAP_BOUNDS.lon1 - MAP_BOUNDS.lon0)) * MAP_BOUNDS.w, ((MAP_BOUNDS.lat1 - lat) / (MAP_BOUNDS.lat1 - MAP_BOUNDS.lat0)) * MAP_BOUNDS.h];
-// Which side of a border gets the line, so every frontier is a single clean pixel wide.
-const BORDER_RANK = { persia: 0, rome: 1, armenia: 2, unclaimed: 3, north: 4, arabia: 5, sea: 9 };
 const WORLD_MAP_CACHE = {};
 // The map as it looks after `wins` victories: { canvas, center of your territory in map pixels }.
 function worldMapBase(wins) {
@@ -1281,7 +1292,7 @@ function worldMapBase(wins) {
     let col = base;
     const nb = [at(x + 1, y), at(x - 1, y), at(x, y + 1), at(x, y - 1)].filter(Boolean);
     if (o === "sea") { if (nb.some((n) => n !== "sea")) col = dark; else if ((x * 3 + y * 5) % 13 === 0) col = "#5d8fcc"; }
-    else if (nb.some((n) => n !== o && n !== "sea" && BORDER_RANK[o] < BORDER_RANK[n])) col = INK;   // frontier: one solid line, drawn on one side (coasts are drawn on the sea side)
+    else if (nb.some((n) => n !== o && n !== "sea") && (o === "persia" || o === "rome" || ((x + y) % 2 === 0))) col = INK;   // frontier (coasts are drawn on the sea side)
     else if ((o === "persia" || o === "unclaimed") && x + 1 < w && y + 1 < h && (at(x + 1, y) === o || at(x, y + 1) === o)
              && (provKey(x, y) !== provKey(x + 1, y) || provKey(x, y) !== provKey(x, y + 1))
              && (x + y) % 2 === 0) col = o === "persia" ? "#6e4b9a" : "#8f8264";               // province outlines
