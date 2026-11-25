@@ -34,6 +34,11 @@ browser to play.
      step, up to 3 (for example, toward the enemy's middle, then their rear). Troops march the
      steps in order and only stop for enemies right next to them. After the last step they fight
      the nearest enemy. Undo and Clear are on the board, and the plan carries over between battles.
+   * **Formation:** infantry and archers march as a block and keep their starting shape. They break
+     formation only to fight enemies close by, then fall back into place. Riders move freely.
+   * **Strict / Loose:** with Strict, troops push along their route and only fight enemies right in
+     their way (good for flanking around the enemy). With Loose, they stop to fight enemies they pass
+     near, then carry on along the route.
    * **Enemy formation:** infantry in the center, cavalry split across both flanks, and archers
      and siege at the rear.
 3. **Battle:** armies fight on their own. Your troops start at the bottom and the enemy's at the

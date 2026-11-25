@@ -210,10 +210,10 @@ canvas { image-rendering: crisp-edges; image-rendering: pixelated; }
 
     <div class="panel plan">
       <div class="section-title"><h3>Battle plan</h3>
-        <div class="plan-tools"><button class="btn small ghost" id="undoRoute">Undo</button><button class="btn small ghost" id="clearRoutes">Clear</button></div>
+        <div class="plan-tools"><button class="btn small ghost" id="routeMode" aria-label="Route discipline">Strict</button><button class="btn small ghost" id="undoRoute">Undo</button><button class="btn small ghost" id="clearRoutes">Clear</button></div>
       </div>
       <div class="board"><canvas id="planBoard" aria-label="Battle plan: swipe from a zone to draw its attack route"></canvas><div id="boardLabels"></div></div>
-      <p class="hint">Swipe from one of your zones to send its troops on a route. Each swipe adds a step, up to 3. Troops follow the steps in order, then fight whatever is closest. Tap a troop's zone below to move it.</p>
+      <p class="hint">Swipe from one of your zones to send its troops on a route. Each swipe adds a step, up to 3. Troops follow the steps in order, then fight whatever is closest. <b>Strict</b>: troops push along their route and only fight enemies right in their way. <b>Loose</b>: they stop to fight enemies they pass near, then carry on. Tap a troop's zone below to move it.</p>
     </div>
 
     <div class="section-title"><h3>Your army</h3><span class="eyebrow" id="armyTotal"></span></div>
@@ -394,6 +394,7 @@ function ensurePlan(r) {
   for (const k of PLAYER_UNITS) if (!r.plan.zone[k]) r.plan.zone[k] = defaultZone(r, k);
   for (const z of ZONE_ORDER) if (!r.plan.paths[z]) r.plan.paths[z] = [];
   if (!r.plan.history) r.plan.history = [];
+  if (r.plan.loose === undefined) r.plan.loose = false;
 }
 function addUnits(r, key, count) { r.army[key] = (r.army[key] || 0) + Math.max(0, Math.min(count, ARMY_CAP - armySize(r))); }
 function mod(r, key, stat, v) { r.mods[key][stat] += v; }
@@ -758,7 +759,7 @@ const FX = {
 class Battle {
   constructor(run, W, H) {
     this.W = W; this.H = H; this.t = 0; this.over = false; this.endT = 0; this.winner = null;
-    this.units = []; this.shots = []; this.marks = []; this.parts = []; this.booms = []; this.shake = 0;
+    this.units = []; this.shots = []; this.marks = []; this.parts = []; this.booms = []; this.groups = []; this.shake = 0;
     const en = run.enemy, E = EMPIRES[en.emp];
     this.E = E;
     const mine = [], theirs = [];
@@ -799,6 +800,39 @@ class Battle {
       u.y = clamp(u.y + rand(-2, 2), 44, this.H - 6);
     });
   }
+  // Infantry and archers in a zone march as one block: an invisible anchor moves toward the goal and
+  // each troop walks to its own spot relative to it, so the starting shape holds until they engage.
+  makeGroup(members, side, route) {
+    const fm = members.filter((u) => !u.U.mount && (u.U.role === "inf" || u.U.role === "spear" || u.U.role === "ranged"));
+    if (fm.length < 2) return;
+    const x = fm.reduce((a, u) => a + u.x, 0) / fm.length, y = fm.reduce((a, u) => a + u.y, 0) / fm.length;
+    const g = { side, x, y, members: fm, step: 0, speed: Math.min(...fm.map((u) => u.speed)) * 0.95,
+                route: (route || []).map((p) => ({ x: clamp(p.x * this.W, 12, this.W - 12), y: clamp(p.y * this.H, 44, this.H - 6) })) };
+    for (const u of fm) { u.group = g; u.form = { dx: u.x - x, dy: u.y - y }; }
+    this.groups.push(g);
+  }
+  updateGroups(dt, live) {
+    for (const g of this.groups) {
+      const marching = g.members.filter((u) => !u.dead && !u.engaged);
+      if (!marching.length) continue;
+      // wait for stragglers so the block doesn't stretch out
+      const cx = marching.reduce((a, u) => a + u.x - u.form.dx, 0) / marching.length;
+      const cy = marching.reduce((a, u) => a + u.y - u.form.dy, 0) / marching.length;
+      if (Math.hypot(g.x - cx, g.y - cy) > 22 && (g.wait = (g.wait || 0) + dt) < 1.5) continue;
+      g.wait = 0;
+      let goal;
+      if (g.step < g.route.length) {
+        goal = g.route[g.step];
+        if (Math.hypot(goal.x - g.x, goal.y - g.y) < 14) { g.step++; continue; }
+      } else {
+        let bd = Infinity;
+        for (const v of live) if (v.side !== g.side && !v.dead) { const d = (v.x - g.x) ** 2 + (v.y - g.y) ** 2; if (d < bd) { bd = d; goal = v; } }
+        if (!goal || Math.sqrt(bd) < 30) continue;
+      }
+      const gx = goal.x - g.x, gy = goal.y - g.y, gd = Math.hypot(gx, gy) || 1, step = g.speed * dt;
+      g.x = clamp(g.x + (gx / gd) * step, 12, this.W - 12); g.y = clamp(g.y + (gy / gd) * step, 44, this.H - 6);
+    }
+  }
   // Your troops start in the zones you chose and follow that zone's route.
   formPlayer(list) {
     const groups = { left: [], center: [], right: [], rear: [] };
@@ -807,9 +841,11 @@ class Battle {
       const rect = ZONES[z];
       this.fillZone(groups[z], rect, 0);
       const route = this.plan.paths[z];
+      this.makeGroup(groups[z], 0, route);
       if (!route.length) continue;
       const cx = ((rect.x0 + rect.x1) / 2) * this.W, cy = ((rect.y0 + rect.y1) / 2) * this.H;
-      for (const u of groups[z]) {   // each troop keeps its place in the group as it marches
+      for (const u of groups[z]) {   // riders and heavies follow the route on their own
+        if (u.group) continue;
         u.path = route.map((p) => ({ x: clamp(p.x * this.W + (u.x - cx) * 0.5, 12, this.W - 12), y: clamp(p.y * this.H + (u.y - cy) * 0.5, 44, this.H - 6) }));
         u.step = 0;
       }
@@ -825,7 +861,7 @@ class Battle {
       else if (r === "ranged" || r === "siege") groups.rear.push(u);
       else groups.center.push(u);
     }
-    for (const z of ZONE_ORDER) this.fillZone(groups[z], this.zoneRect(z, 1), 1);
+    for (const z of ZONE_ORDER) { this.fillZone(groups[z], this.zoneRect(z, 1), 1); this.makeGroup(groups[z], 1, null); }
   }
   // Where the camera should look: midway between the two armies.
   focus() {
@@ -870,6 +906,8 @@ class Battle {
   tick(dt) {
     this.t += dt;
     const live = this.units.filter((u) => !u.dead);
+    this.updateGroups(dt, live);
+    const routeBuffer = this.plan.loose ? 120 : 40;   // how close an enemy must be to pull troops off their route
     for (const u of live) {
       if (u.regen) u.hp = Math.min(u.maxHp, u.hp + u.regen * dt);
       u.retarget -= dt;
@@ -894,8 +932,23 @@ class Battle {
           u.x += (ax / ad) * step; u.y += (ay / ad) * step; FX.move(u, step);
         }
       }
+      // In formation: walk to your spot in the block unless an enemy is close enough to fight.
+      if (u.group) {
+        const g = u.group, onRoute = g.step < g.route.length;
+        u.engaged = dist <= reach + (onRoute ? routeBuffer : u.range ? 20 : 60);
+        if (!u.engaged) {
+          const sx = g.x + u.form.dx - u.x, sy = g.y + u.form.dy - u.y, sd = Math.hypot(sx, sy);
+          if (sd > 2) {
+            const step = Math.min(sd, u.speed * dt);
+            u.x += (sx / sd) * step; u.y += (sy / sd) * step;
+            if (Math.abs(sx) > 3) u.facing = sx > 0 ? 1 : -1;
+            if (FX.move(u, step) && Math.random() < 0.4) this.burst(u.x, u.y, 2, ["#b8a77a", "#9c8a55"], 18, 6, 0.3);
+          } else if (Math.abs(dx) > 4) u.facing = dx > 0 ? 1 : -1;
+          continue;
+        }
+      }
       // Following a battle-plan route: keep marching unless an enemy is close.
-      if (u.path && u.step < u.path.length && dist > reach + 40) {
+      if (u.path && u.step < u.path.length && dist > reach + routeBuffer) {
         const wp = u.path[u.step], wx = wp.x - u.x, wy = wp.y - u.y, wd = Math.hypot(wx, wy);
         if (wd < 14) { u.step++; continue; }
         const step = u.speed * dt;
@@ -1010,8 +1063,8 @@ class Battle {
       g.beginPath(); g.ellipse(Math.round(m.x / PX), Math.round(m.y / PX), mr, mr * 0.4, 0, 0, Math.PI * 2); g.fill();
     }
     // Your battle-plan routes, shown at the start of the fight
-    if (this.t < 3.5) {
-      g.globalAlpha = this.t < 2.5 ? 0.85 : 0.85 * (3.5 - this.t);
+    if (this.t < 1.2) {
+      g.globalAlpha = 0.35 * (1 - this.t / 1.2);
       for (const z of ZONE_ORDER) drawRoute(g, routePoints(this.plan, z, this.W / PX, this.H / PX), ZONES[z].color);
       g.globalAlpha = 1;
     }
@@ -1204,6 +1257,7 @@ function camp() {
     document.querySelectorAll("[data-u]").forEach((cv) => paintIcon(cv, cv.dataset.u, E));
     document.querySelectorAll("[data-mine]").forEach((cv) => paintIcon(cv, unitOf(run, cv.dataset.mine), F.E));
     renderPlanBase();
+    showRouteMode();
   });
 }
 
@@ -1276,6 +1330,8 @@ function endSwipe() {
 }
 $("planBoard").addEventListener("pointerup", endSwipe);
 $("planBoard").addEventListener("pointercancel", () => { planDrag = null; drawPlan(); });
+function showRouteMode() { $("routeMode").textContent = run.plan.loose ? "Loose" : "Strict"; }
+$("routeMode").onclick = () => { run.plan.loose = !run.plan.loose; persist(); showRouteMode(); };
 $("undoRoute").onclick = () => {
   const z = run.plan.history.pop();
   if (z) { run.plan.paths[z].pop(); persist(); drawPlan(); }
