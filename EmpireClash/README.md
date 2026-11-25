@@ -7,6 +7,37 @@ This folder is self-contained: one HTML file with no build step and no dependenc
 Google Fonts. It is separate from everything else in this repository. Open `index.html` in a
 browser to play.
 
+## Modes
+
+* **Campaign:** a fixed series of historical battles on hand-made maps, chosen from a pixel-art
+  map of the empires' real borders. The first campaign is **Sasanian Persia** (you lead Persia
+  against Rome):
+
+  | # | Battle      | Year   | Map                                              | Rome fields |
+  |---|-------------|--------|--------------------------------------------------|-------------|
+  | 1 | Misiche     | AD 244 | Euphrates across the field, two bridges          | 26 troops   |
+  | 2 | Barbalissos | AD 253 | Slanting river, one bridge, rocky banks           | 30 troops   |
+  | 3 | Edessa      | AD 260 | City walls with two gates (steppe)               | 30 troops   |
+  | 4 | Singara     | AD 344 | Desert, rock ridges with three passes, an oasis  | 36 troops   |
+  | 5 | Ctesiphon   | AD 363 | Wide Tigris with three bridges, Rome's biggest army | 40 troops |
+
+  * **Your army:** you start with 25 Persian troops and can grow to 40. Each win gives gold and a card.
+  * **Losing:** a loss doesn't end the campaign. Your army regroups and you retry the battle.
+  * **Field size:** campaign fields are twice the screen in each direction, with the same troop size.
+  * **The map:** it shows the frontier after the Peace of Nisibis (AD 299), including Armenia as a
+    buffer kingdom and the Arabian desert. Its seas, rivers, mountains and cities come from rough
+    longitude/latitude outlines, rasterized to pixels.
+
+* **Endless:** the original mode, described below. It has its own save, separate from the campaign.
+
+## Terrain
+
+Campaign maps can have rivers and lakes, bridges, rocks and walls. Troops can't enter water, rocks or
+walls. They walk straight when the way is clear and otherwise follow an A* path on a 16px grid. That
+is how they find bridges and gates; formations squeeze through and re-form on the other side.
+Arrows and artillery fly over everything. Maps are defined in `CAMPAIGNS` as fractions of the field,
+so adding a battle means adding a stage with a `map` and an `enemy`.
+
 ## The loop
 
 0. **Choose your empire:** play as the Kingdom (your own banner) or as any of the five empires.
