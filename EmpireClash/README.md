@@ -14,7 +14,15 @@ browser to play.
    * **Upgrades:** health, attack, range, attack speed or healing.
    * **Treasury:** gold now, gold per win, or cheaper recruiting.
 2. **Camp:** your scouts reveal the next enemy empire and its army. Spend gold to recruit more of
-   any troop type you own, up to 60 troops.
+   any troop type you own, up to 60 troops. Then set your **battle plan**:
+   * **Zones:** each troop type starts in the Left flank, Center, Right flank or Rear. Tap the zone
+     button on a troop row to change it.
+   * **Routes:** on the plan board, swipe from a zone to give its troops a route. Each swipe adds a
+     step, up to 3 (for example, toward the enemy's middle, then their rear). Troops march the
+     steps in order and only stop for enemies right next to them. After the last step they fight
+     the nearest enemy. Undo and Clear are on the board, and the plan carries over between battles.
+   * **Enemy formation:** infantry in the center, cavalry split across both flanks, and archers
+     and siege at the rear.
 3. **Battle:** armies fight on their own. Your troops start at the bottom and the enemy's at the
    top. You can speed it up 2× or 3×.
 4. **Win:** you get gold and a card pick, then a new random empire (never the same one twice in a
@@ -25,7 +33,11 @@ browser to play.
 * Spearmen (and Immortals) deal double damage to cavalry and elephants.
 * Cavalry deals 1.5× damage to ranged troops and siege.
 * Eagle Warriors deal 1.5× damage to ranged troops and siege.
-* Catapults, Mangonels and War Elephants hit groups.
+* Artillery (Catapult, Mangonel, Ballista) fires at the ground where its target is standing. The shot
+  takes about a second to land (the ballista bolt about 0.7s), and a blinking ring marks the spot.
+  Then it explodes for area damage: full in the middle, half at the edge. Troops can walk out of
+  the ring before it lands.
+* War Elephants also hit everyone around their target.
 
 ## The five empires
 

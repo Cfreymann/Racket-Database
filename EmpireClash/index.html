@@ -120,6 +120,19 @@ canvas { image-rendering: crisp-edges; image-rendering: pixelated; }
 .march { position: sticky; bottom: -16px; margin: auto 0 -16px; padding: 8px 0 16px; background: linear-gradient(transparent, var(--parchment) 30%); }
 .march .btn { width: 100%; font-size: 24px; }
 
+/* Battle plan board */
+.plan { display: flex; flex-direction: column; gap: 8px; }
+.plan-tools { display: flex; gap: 6px; }
+.board { position: relative; width: 100%; border: 3px solid var(--ink); background: #7ea456; }
+#planBoard { display: block; width: 100%; touch-action: none; cursor: crosshair; }
+.zone-label {
+  position: absolute; pointer-events: none; font: 700 10px/1 var(--body); letter-spacing: 0.06em; text-transform: uppercase;
+  text-shadow: 1px 1px 0 var(--ink), -1px 1px 0 var(--ink), 1px -1px 0 var(--ink), -1px -1px 0 var(--ink);
+}
+.plan .hint { margin: 0; font: 600 13px/1.35 var(--body); color: var(--muted); }
+.zone-pill { margin-top: 5px; border: 2px solid var(--ink); background: var(--zc, #fff); padding: 2px 8px; font: 700 12px/1.2 var(--body); color: var(--ink); box-shadow: 0 2px 0 var(--ink); }
+.zone-pill:active { transform: translateY(2px); box-shadow: none; }
+
 /* Battle */
 #battle { padding: 0; gap: 0; overflow: hidden; background: #6f9a4a; }
 .hud { display: flex; flex-direction: column; gap: 6px; padding: 10px 14px 8px; background: var(--parchment); border-bottom: 3px solid var(--ink); }
@@ -175,6 +188,14 @@ canvas { image-rendering: crisp-edges; image-rendering: pixelated; }
 
     <div class="panel enemy" id="enemyPanel"></div>
 
+    <div class="panel plan">
+      <div class="section-title"><h3>Battle plan</h3>
+        <div class="plan-tools"><button class="btn small ghost" id="undoRoute">Undo</button><button class="btn small ghost" id="clearRoutes">Clear</button></div>
+      </div>
+      <div class="board"><canvas id="planBoard" aria-label="Battle plan: swipe from a zone to draw its attack route"></canvas><div id="boardLabels"></div></div>
+      <p class="hint">Swipe from one of your zones to send its troops on a route. Each swipe adds a step, up to 3. Troops follow the steps in order, then fight whatever is closest. Tap a troop's zone below to move it.</p>
+    </div>
+
     <div class="section-title"><h3>Your army</h3><span class="eyebrow" id="armyTotal"></span></div>
     <div class="roster" id="roster"></div>
 
@@ -217,7 +238,7 @@ const UNITS = {
   // Roman Empire
   legionary:   { name: "Legionary", role: "inf", hp: 125, atk: 13, cd: 1.0, speed: 40, weapon: "sword", shield: "scutum" },
   equites:     { name: "Equites", role: "cav", hp: 115, atk: 16, cd: 1.0, speed: 85, weapon: "spear", mount: "horse" },
-  ballista:    { name: "Ballista", role: "siege", hp: 80, atk: 34, cd: 2.6, range: 340, speed: 22, mount: "siege", siege: "ballista", proj: "bolt" },
+  ballista:    { name: "Ballista", role: "siege", hp: 80, atk: 34, cd: 2.6, range: 340, splash: 22, speed: 22, mount: "siege", siege: "ballista", proj: "bolt" },
   // Mongol Empire
   horsearcher: { name: "Horse Archer", role: "cav", hp: 85, atk: 9, cd: 1.1, range: 210, speed: 80, weapon: "bow", mount: "horse", proj: "arrow" },
   lancer:      { name: "Lancer", role: "cav", hp: 135, atk: 18, cd: 1.1, speed: 88, weapon: "lance", mount: "horse" },
@@ -259,6 +280,18 @@ const EMPIRES = {
 };
 const PLAYER_UNITS = ["sword", "spear", "archer", "knight", "catapult"];
 
+// Formation zones on your half of the field (fractions of the field; y grows toward your side).
+// The enemy uses the same zones mirrored onto the top half.
+const ZONES = {
+  left:   { name: "Left flank",  color: "#f2c94c", x0: 0.03, x1: 0.30, y0: 0.60, y1: 0.82 },
+  center: { name: "Center",      color: "#ffffff", x0: 0.33, x1: 0.67, y0: 0.60, y1: 0.82 },
+  right:  { name: "Right flank", color: "#f2994a", x0: 0.70, x1: 0.97, y0: 0.60, y1: 0.82 },
+  rear:   { name: "Rear",        color: "#56ccf2", x0: 0.15, x1: 0.85, y0: 0.85, y1: 0.98 },
+};
+const ZONE_ORDER = ["left", "center", "right", "rear"];
+const DEFAULT_ZONE = { sword: "center", spear: "center", archer: "rear", knight: "right", catapult: "rear" };
+const MAX_ROUTE_STEPS = 3;
+
 // Cards: pick one of three after every victory. `n(level)` scales unit cards as battles go on.
 const n = (base) => (lvl) => base + Math.floor(lvl / 4);
 const CARDS = [
@@ -292,7 +325,14 @@ function newRun() {
   const mods = {};
   for (const k of [...PLAYER_UNITS, "all"]) mods[k] = { hp: 0, atk: 0, rate: 0, range: 0 };
   return { level: 1, gold: 40, army: { sword: 4, spear: 2, archer: 2 }, recruited: {}, mods, tax: 0, discount: 0, regen: 0,
-           picked: [], enemy: null, lastEmpire: null, stage: "draft" };
+           picked: [], enemy: null, lastEmpire: null, stage: "draft", plan: null };
+}
+// Battle plan: which zone each troop type starts in, and each zone's route (list of points 0..1).
+function ensurePlan(r) {
+  if (!r.plan) r.plan = { zone: {}, paths: { left: [], center: [], right: [], rear: [] }, history: [] };
+  for (const k of PLAYER_UNITS) if (!r.plan.zone[k]) r.plan.zone[k] = DEFAULT_ZONE[k];
+  for (const z of ZONE_ORDER) if (!r.plan.paths[z]) r.plan.paths[z] = [];
+  if (!r.plan.history) r.plan.history = [];
 }
 function addUnits(r, key, count) { r.army[key] = (r.army[key] || 0) + Math.max(0, Math.min(count, ARMY_CAP - armySize(r))); }
 function mod(r, key, stat, v) { r.mods[key][stat] += v; }
@@ -301,6 +341,7 @@ const ARMY_CAP = 60;       // most troops your camp can hold
 const armySize = (r) => Object.values(r.army).reduce((a, b) => a + b, 0);
 const victoryGold = (r) => 20 + r.level * 6 + r.tax;
 const rand = (a, b) => a + Math.random() * (b - a);
+const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 const pick = (arr) => arr[Math.floor(Math.random() * arr.length)];
 
 function playerStats(r, key) {
@@ -505,6 +546,45 @@ function drawSprite(g, spr, x, y, pose, facing, frameIdx = 0) {
   if (pose.flash > 0.35) { g.globalAlpha = Math.min(1, pose.flash); g.drawImage(spr.whites[frameIdx % spr.whites.length], -spr.ax, -spr.ay); }
   g.restore();
 }
+// Pixel primitives (art pixels)
+function pixelLine(g, x0, y0, x1, y1, w, color, dash) {
+  const n = Math.max(1, Math.ceil(Math.hypot(x1 - x0, y1 - y0)));
+  g.fillStyle = color;
+  for (let i = 0; i <= n; i++) {
+    if (dash && i % 6 > 3) continue;
+    g.fillRect(Math.round(x0 + ((x1 - x0) * i) / n - w / 2), Math.round(y0 + ((y1 - y0) * i) / n - w / 2), w, w);
+  }
+}
+function pixelRing(g, cx, cy, r, flat, color) {
+  g.fillStyle = color;
+  const n = Math.max(12, Math.round(r * 6));
+  for (let i = 0; i < n; i++) { const a = (i / n) * Math.PI * 2; g.fillRect(Math.round(cx + Math.cos(a) * r), Math.round(cy + Math.sin(a) * r * flat), 1, 1); }
+}
+function dashedRect(g, x, y, w, h, color) {
+  x = Math.round(x); y = Math.round(y); w = Math.round(w); h = Math.round(h);
+  g.fillStyle = color;
+  for (let i = 0; i < w; i += 4) { g.fillRect(x + i, y, 2, 1); g.fillRect(x + i, y + h - 1, 2, 1); }
+  for (let i = 0; i < h; i += 4) { g.fillRect(x, y + i, 1, 2); g.fillRect(x + w - 1, y + i, 1, 2); }
+}
+// A route: dashed line through the points with an arrowhead on every step.
+function drawRoute(g, pts, color, preview) {
+  for (const [w, c] of [[4, INK], [2, color]]) {
+    for (let i = 1; i < pts.length; i++) {
+      const a = pts[i - 1], b = pts[i], len = Math.hypot(b.x - a.x, b.y - a.y) || 1;
+      const dx = (b.x - a.x) / len, dy = (b.y - a.y) / len;
+      pixelLine(g, a.x, a.y, b.x - dx * 3, b.y - dy * 3, w, c, !!preview);
+      for (let k = 0; k < 7; k++) {          // arrowhead
+        const hw = k * 0.75 + (w === 4 ? 1 : 0);
+        const cx = b.x - dx * k, cy = b.y - dy * k;
+        pixelLine(g, cx - dy * hw, cy + dx * hw, cx + dy * hw, cy - dx * hw, w === 4 ? 2 : 1, c);
+      }
+    }
+  }
+}
+function routePoints(plan, z, w, h) {
+  const Z = ZONES[z];
+  return [{ x: ((Z.x0 + Z.x1) / 2) * w, y: ((Z.y0 + Z.y1) / 2) * h }, ...plan.paths[z].map((p) => ({ x: p.x * w, y: p.y * h }))];
+}
 function drawIconGrid(canvas, rows) {
   const r = canvas.getBoundingClientRect(), w = gridW(rows), h = rows.length;
   const s = Math.max(1, Math.floor(Math.min(r.width / (w + 2), r.height / (h + 2))));
@@ -611,7 +691,7 @@ const FX = {
 class Battle {
   constructor(run, W, H) {
     this.W = W; this.H = H; this.t = 0; this.over = false; this.endT = 0; this.winner = null;
-    this.units = []; this.shots = []; this.marks = []; this.parts = []; this.shake = 0;
+    this.units = []; this.shots = []; this.marks = []; this.parts = []; this.booms = []; this.shake = 0;
     const en = run.enemy, E = EMPIRES[en.emp];
     this.E = E;
     const mine = [], theirs = [];
@@ -620,7 +700,8 @@ class Battle {
       const b = UNITS[k];
       theirs.push(this.make(1, k, E, { ...b, hp: Math.round(b.hp * en.scale), atk: b.atk * en.scale, range: b.range || 0, regen: 0 }));
     }
-    this.place(mine, 0); this.place(theirs, 1);
+    ensurePlan(run); this.plan = run.plan;
+    this.formPlayer(mine); this.formEnemy(theirs);
     this.units = [...mine, ...theirs];
     this.startHp = [this.sideHp(0), this.sideHp(1)];
   }
@@ -633,21 +714,48 @@ class Battle {
     FX.init(u, U.mount === "siege" ? "siege" : U.mount === "elephant" ? "beast" : U.mount ? "rider" : "foot");
     return u;
   }
-  // Formation: melee in front, riders next, archers behind, siege at the back.
-  place(list, side) {
+  zoneRect(z, side) { const Z = ZONES[z]; return side === 0 ? Z : { x0: Z.x0, x1: Z.x1, y0: 1 - Z.y1, y1: 1 - Z.y0 }; }
+  // Lay a group out in rows inside a zone: melee at the front, then riders, archers, siege.
+  fillZone(list, rect, side) {
     const order = { inf: 0, spear: 0, beast: 0, cav: 1, ranged: 2, siege: 3 };
-    const rows = [[], [], [], []];
-    for (const u of list) rows[order[u.U.role]].push(u);
-    const gap = 26, perLine = Math.max(4, Math.floor((this.W - 30) / gap));
-    let lineIdx = 0;
-    for (const row of rows) {
-      for (let i = 0; i < row.length; i += perLine) {
-        const chunk = row.slice(i, i + perLine), width = (chunk.length - 1) * gap;
-        const y = side === 0 ? this.H * 0.64 + lineIdx * 28 : this.H * 0.36 - lineIdx * 28;
-        chunk.forEach((u, j) => { u.x = this.W / 2 - width / 2 + j * gap + rand(-3, 3); u.y = Math.min(this.H - 8, Math.max(44, y + rand(-3, 3))); });
-        lineIdx++;
+    list.sort((a, b) => order[a.U.role] - order[b.U.role]);
+    const gap = 24, rowH = 26, x0 = rect.x0 * this.W, x1 = rect.x1 * this.W, cx = (x0 + x1) / 2;
+    const cols = Math.max(1, Math.floor((x1 - x0) / gap));
+    list.forEach((u, i) => {
+      const row = Math.floor(i / cols), col = i % cols, n = Math.min(cols, list.length - row * cols);
+      u.x = cx - ((n - 1) * gap) / 2 + col * gap + rand(-2, 2);
+      // feet position: sprites stand about 36px tall, so the front row sits inside the zone
+      u.y = side === 0 ? rect.y0 * this.H + 38 + row * rowH : rect.y1 * this.H - 4 - row * rowH;
+      u.y = clamp(u.y + rand(-2, 2), 44, this.H - 6);
+    });
+  }
+  // Your troops start in the zones you chose and follow that zone's route.
+  formPlayer(list) {
+    const groups = { left: [], center: [], right: [], rear: [] };
+    for (const u of list) groups[this.plan.zone[u.key] || "center"].push(u);
+    for (const z of ZONE_ORDER) {
+      const rect = ZONES[z];
+      this.fillZone(groups[z], rect, 0);
+      const route = this.plan.paths[z];
+      if (!route.length) continue;
+      const cx = ((rect.x0 + rect.x1) / 2) * this.W, cy = ((rect.y0 + rect.y1) / 2) * this.H;
+      for (const u of groups[z]) {   // each troop keeps its place in the group as it marches
+        u.path = route.map((p) => ({ x: clamp(p.x * this.W + (u.x - cx) * 0.5, 12, this.W - 12), y: clamp(p.y * this.H + (u.y - cy) * 0.5, 44, this.H - 6) }));
+        u.step = 0;
       }
     }
+  }
+  // Enemies: infantry in the center, cavalry split across both flanks, archers and siege at the rear.
+  formEnemy(list) {
+    const groups = { left: [], center: [], right: [], rear: [] };
+    let flip = 0;
+    for (const u of list) {
+      const r = u.U.role;
+      if (r === "cav") groups[flip++ % 2 ? "right" : "left"].push(u);
+      else if (r === "ranged" || r === "siege") groups.rear.push(u);
+      else groups.center.push(u);
+    }
+    for (const z of ZONE_ORDER) this.fillZone(groups[z], this.zoneRect(z, 1), 1);
   }
   sideHp(side) { return this.units.reduce((s, u) => s + (u.side === side && !u.dead ? u.hp : 0), 0); }
   alive(side) { return this.units.filter((u) => u.side === side && !u.dead).length; }
@@ -662,14 +770,14 @@ class Battle {
       this.parts.push({ x: x / PX, y: y / PX, vx: Math.cos(a) * s, vy: Math.sin(a) * s * 0.6 - lift, life: life * rand(0.6, 1.2), t: 0, c: pick(colors), size: Math.random() < 0.3 ? 2 : 1 });
     }
   }
-  hit(attacker, target, dmg, power = 32) {
+  hit(attacker, target, dmg, power = 32, from = attacker) {
     if (target.dead) return;
     target.hp -= dmg * this.mult(attacker, target);
-    FX.hit(target, target.x - attacker.x, target.y - attacker.y, power);
+    FX.hit(target, target.x - from.x, target.y - from.y, power);
     this.burst(target.x, target.y - 18, 3, ["#ffffff", "#ffe38a"], 40, 10, 0.25);
     if (target.hp <= 0) {
       target.dead = true; target.deadT = 0;
-      FX.die(target, target.x - attacker.x);
+      FX.die(target, target.x - from.x);
       this.burst(target.x, target.y - 8, 8, ["#d8d2c4", "#b8ae98", "#8d8984"], 45, 25, 0.6);
     }
   }
@@ -694,6 +802,16 @@ class Battle {
       const tg = u.target; if (!tg) continue;
       const dx = tg.x - u.x, dy = tg.y - u.y, dist = Math.hypot(dx, dy) || 1;
       const reach = (u.range || 0) + u.rad + tg.rad + 2;
+      // Following a battle-plan route: keep marching unless an enemy is close.
+      if (u.path && u.step < u.path.length && dist > reach + 40) {
+        const wp = u.path[u.step], wx = wp.x - u.x, wy = wp.y - u.y, wd = Math.hypot(wx, wy);
+        if (wd < 14) { u.step++; continue; }
+        const step = u.speed * dt;
+        u.x += (wx / wd) * step; u.y += (wy / wd) * step;
+        if (Math.abs(wx) > 4) u.facing = wx > 0 ? 1 : -1;
+        if (FX.move(u, step) && Math.random() < 0.5) this.burst(u.x, u.y, 2, ["#b8a77a", "#9c8a55"], 18, 6, 0.3);
+        continue;
+      }
       if (Math.abs(dx) > 4) u.facing = dx > 0 ? 1 : -1;
       if (dist > reach) {
         const step = u.speed * dt;
@@ -704,12 +822,17 @@ class Battle {
         if (u.cdLeft <= 0) {
           u.cdLeft = u.cd * rand(0.9, 1.1);
           FX.attack(u, dx, dy, !!u.U.proj);
-          if (u.U.proj) {
+          if (u.U.mount === "siege") {
+            // Artillery fires at the ground where the target stands now; the shot takes about a
+            // second to land, so troops can walk out of the marked spot.
+            const ballista = u.U.siege === "ballista";
+            this.shots.push({ from: u, ground: true, x0: u.x + u.facing * 6, y0: u.y - 18, x1: tg.x + rand(-8, 8), y1: tg.y + rand(-8, 8),
+                              t: 0, dur: ballista ? 0.7 : 1.0, kind: u.U.proj, dmg: u.atk, spin: rand(-12, 12),
+                              lob: ballista ? 16 : 60 + dist * 0.25, radius: u.splash || 24 });
+            FX.recoil(u, dx, dy, 70);
+            this.burst(u.x + u.facing * 10, u.y - 14, 6, ["#d8d2c4", "#efe6cf"], 35, 15, 0.5);
+          } else if (u.U.proj) {
             this.shots.push({ from: u, target: tg, x0: u.x, y0: u.y - 16, x1: tg.x, y1: tg.y - 10, t: 0, dur: Math.max(0.25, dist / 420), kind: u.U.proj, dmg: u.atk, spin: rand(-12, 12) });
-            if (u.U.mount === "siege") {
-              FX.recoil(u, dx, dy, 70);
-              this.burst(u.x + u.facing * 10, u.y - 14, 6, ["#d8d2c4", "#efe6cf"], 35, 15, 0.5);
-            }
           } else {
             this.hit(u, tg, u.atk, u.U.mount === "elephant" ? 60 : 32);
             if (u.splash) { this.splashAt(u, tg.x, tg.y, u.splash, u.atk * 0.5, tg); this.shake = Math.max(this.shake, 2); }
@@ -730,18 +853,16 @@ class Battle {
     // projectiles
     for (const s of this.shots) {
       s.t += dt;
-      if (!s.target.dead) { s.x1 = s.target.x; s.y1 = s.target.y - 10; }
+      if (!s.ground && !s.target.dead) { s.x1 = s.target.x; s.y1 = s.target.y - 10; }
       if (s.t >= s.dur && !s.done) {
         s.done = true;
-        if (s.kind === "rock") {
-          this.splashAt(s.from, s.x1, s.y1 + 10, s.from.splash, s.dmg);
-          this.marks.push({ x: s.x1, y: s.y1 + 10, t: 0 });
-          this.burst(s.x1, s.y1 + 8, 12, ["#9c8a55", "#7a6a40", "#c9c2b6"], 70, 35, 0.6);
-          this.shake = Math.max(this.shake, 3);
-        } else if (!s.target.dead) this.hit(s.from, s.target, s.dmg, s.kind === "bolt" ? 45 : 22);
+        if (s.ground) this.explode(s);
+        else if (!s.target.dead) this.hit(s.from, s.target, s.dmg, 22);
       }
     }
     this.shots = this.shots.filter((s) => !s.done);
+    for (const b of this.booms) b.t += dt;
+    this.booms = this.booms.filter((b) => b.t < 0.5);
     for (const u of this.units) { FX.update(u, dt); if (u.dead) u.deadT += dt; }
     this.units = this.units.filter((u) => !u.dead || u.deadT < 1.4);
     for (const m of this.marks) m.t += dt;
@@ -757,6 +878,19 @@ class Battle {
         for (const u of this.units) if (!u.dead && u.side === this.winner) FX.cheer(u);
       }
     } else this.endT += dt;
+  }
+  // Area damage where an artillery shot lands: full damage in the middle, half at the edge.
+  explode(s) {
+    const from = { x: s.x1, y: s.y1 };
+    this.booms.push({ x: s.x1, y: s.y1, r: s.radius, t: 0 });
+    this.marks.push({ x: s.x1, y: s.y1, r: s.radius, t: 0 });
+    for (const u of this.units) {
+      if (u.dead || u.side === s.from.side) continue;
+      const d = Math.hypot(u.x - s.x1, u.y - s.y1);
+      if (d < s.radius + u.rad * 0.5) this.hit(s.from, u, s.dmg * (1 - 0.5 * Math.min(1, d / s.radius)), 70, from);
+    }
+    this.burst(s.x1, s.y1 - 4, s.kind === "rock" ? 16 : 8, ["#9c8a55", "#7a6a40", "#c9c2b6", "#ffe38a"], 90, 45, 0.7);
+    this.shake = Math.max(this.shake, s.kind === "rock" ? 3 : 1.5);
   }
   // Static grass, built once per battle at art resolution (w × h art pixels).
   buildGround(w, h) {
@@ -780,7 +914,22 @@ class Battle {
   draw(g) {
     for (const m of this.marks) {
       g.fillStyle = `rgba(90,60,30,${0.45 * (1 - m.t / 1.2)})`;
-      g.beginPath(); g.ellipse(Math.round(m.x / PX), Math.round(m.y / PX), 12, 4, 0, 0, Math.PI * 2); g.fill();
+      const mr = (m.r || 24) / PX;
+      g.beginPath(); g.ellipse(Math.round(m.x / PX), Math.round(m.y / PX), mr, mr * 0.4, 0, 0, Math.PI * 2); g.fill();
+    }
+    // Your battle-plan routes, shown at the start of the fight
+    if (this.t < 3.5) {
+      g.globalAlpha = this.t < 2.5 ? 0.85 : 0.85 * (3.5 - this.t);
+      for (const z of ZONE_ORDER) drawRoute(g, routePoints(this.plan, z, this.W / PX, this.H / PX), ZONES[z].color);
+      g.globalAlpha = 1;
+    }
+    // Artillery: blinking target marker where the shot will land, plus the shell's ground shadow
+    for (const s of this.shots) {
+      if (!s.ground) continue;
+      const k = Math.min(1, s.t / s.dur), r = (s.radius / PX) * (1.15 - 0.3 * k);
+      if (Math.floor(s.t * 10) % 2 === 0 || k > 0.7) pixelRing(g, s.x1 / PX, s.y1 / PX, r, 0.45, s.from.side === 0 ? "#ffe38a" : "#ff6b5f");
+      g.fillStyle = "rgba(29,22,18,0.35)";
+      g.fillRect(Math.round((s.x0 + (s.x1 - s.x0) * k) / PX) - 2, Math.round((s.y0 + 18 + (s.y1 - s.y0 - 18) * k) / PX), 4, 1);
     }
     const sorted = [...this.units].sort((a, b) => a.y - b.y);
     for (const u of sorted) {
@@ -799,13 +948,20 @@ class Battle {
       }
     }
     for (const s of this.shots) {
-      const k = Math.min(1, s.t / s.dur), lob = s.kind === "rock" ? 70 : s.kind === "bolt" ? 10 : 30;
+      const k = Math.min(1, s.t / s.dur), lob = s.lob ?? (s.kind === "bolt" ? 10 : 30);
       const at = (q) => [s.x0 + (s.x1 - s.x0) * q, s.y0 + (s.y1 - s.y0) * q - lob * Math.sin(Math.PI * q)];
       const [x, y] = at(k), [nx, ny] = at(Math.min(1, k + 0.05));
       const img = SHOT_IMGS[s.kind];
       g.save(); g.translate(Math.round(x / PX), Math.round(y / PX));
       g.rotate(s.kind === "rock" ? s.t * s.spin : Math.atan2(ny - y, nx - x));
       g.drawImage(img, s.kind === "rock" ? -(img.width >> 1) : -img.width + 1, -(img.height >> 1)); g.restore();
+    }
+    // Explosions: a flash, then a shockwave ring spreading to the blast radius
+    for (const b of this.booms) {
+      const k = b.t / 0.5, x = b.x / PX, y = b.y / PX, r = b.r / PX;
+      if (b.t < 0.09) { g.fillStyle = "#fff4c2"; g.beginPath(); g.ellipse(Math.round(x), Math.round(y), r * 0.7, r * 0.35, 0, 0, Math.PI * 2); g.fill(); }
+      pixelRing(g, x, y, r * (0.3 + 0.7 * k), 0.45, k < 0.5 ? "#ffe38a" : "#d8d2c4");
+      if (k < 0.6) pixelRing(g, x, y, r * (0.2 + 0.5 * k), 0.45, "#f2994a");
     }
     for (const p of this.parts) {
       g.globalAlpha = p.t > p.life * 0.6 ? 0.5 : 1;
@@ -893,6 +1049,7 @@ $("cards").addEventListener("click", (e) => {
 
 function camp() {
   if (!run.enemy) { run.enemy = makeEnemy(run.level, run.lastEmpire); }
+  ensurePlan(run);
   run.stage = "camp"; store.run = run; persist();
   show("camp");
   $("campLevel").textContent = `Battle ${run.level}`;
@@ -915,7 +1072,8 @@ function camp() {
     const s = playerStats(run, k), cost = recruitCost(run, k);
     return `<div class="unit-row"><canvas data-mine="${k}"></canvas>
       <div style="min-width:0"><div class="name">${UNITS[k].name}</div>
-        <div class="stats">${ROLE_LABEL[UNITS[k].role]} · ${s.hp} HP · ${Math.round(s.atk / s.cd)} dmg/s${s.range ? ` · range ${s.range}` : ""}</div></div>
+        <div class="stats">${ROLE_LABEL[UNITS[k].role]} · ${s.hp} HP · ${Math.round(s.atk / s.cd)} dmg/s${s.range ? ` · range ${s.range}` : ""}</div>
+        <button class="zone-pill" style="--zc: ${ZONES[run.plan.zone[k]].color}" data-zone="${k}" aria-label="${UNITS[k].name} zone: ${ZONES[run.plan.zone[k]].name}. Tap to change.">${ZONES[run.plan.zone[k]].name} ▸</button></div>
       <div class="right"><span class="count">${run.army[k]}</span>
         <button class="btn small" style="--c: var(--green)" data-recruit="${k}" ${run.gold < cost || size >= ARMY_CAP ? "disabled" : ""}>+1 <span class="coin"></span>${cost}</button></div>
     </div>`;
@@ -936,9 +1094,90 @@ function camp() {
   requestAnimationFrame(() => {
     document.querySelectorAll("[data-u]").forEach((cv) => paintIcon(cv, cv.dataset.u, E));
     document.querySelectorAll("[data-mine]").forEach((cv) => paintIcon(cv, cv.dataset.mine, PLAYER));
+    renderPlanBase();
   });
 }
+
+// ---------------- Battle plan board: a preview of both armies; swipe from a zone to add a route step
+let planBase = null, planDrag = null;
+function renderPlanBase() {
+  const c = $("planBoard"), w = c.clientWidth || 340, h = Math.round(w * 1.15);
+  c.style.height = h + "px";
+  const bw = Math.round(w / PX), bh = Math.round(h / PX);
+  c.width = bw; c.height = bh;
+  const preview = new Battle(run, w, h);
+  preview.t = 99;                                    // the board draws routes itself
+  const base = makeCanvas(bw, bh), g = base.getContext("2d");
+  g.imageSmoothingEnabled = false;
+  g.drawImage(preview.buildGround(bw, bh), 0, 0);
+  g.fillStyle = "rgba(216, 56, 62, 0.12)"; g.fillRect(0, 0, bw, Math.round(bh * 0.44));
+  for (const z of ZONE_ORDER) { const Z = ZONES[z]; dashedRect(g, Z.x0 * bw, Z.y0 * bh, (Z.x1 - Z.x0) * bw, (Z.y1 - Z.y0) * bh, Z.color); }
+  preview.draw(g);
+  planBase = { img: base, w: bw, h: bh };
+  $("boardLabels").innerHTML = ZONE_ORDER.map((z) => `<span class="zone-label" style="left:${ZONES[z].x0 * 100 + 1}%;top:${ZONES[z].y1 * 100 - 5}%;color:${ZONES[z].color}">${ZONES[z].name}</span>`).join("")
+    + `<span class="zone-label" style="left:2%;top:2%;color:#ffd0c8">Enemy lines</span>`;
+  drawPlan();
+}
+function drawPlan() {
+  if (!planBase) return;
+  const c = $("planBoard"), g = c.getContext("2d");
+  g.imageSmoothingEnabled = false;
+  g.drawImage(planBase.img, 0, 0);
+  for (const z of ZONE_ORDER) drawRoute(g, routePoints(run.plan, z, planBase.w, planBase.h), ZONES[z].color);
+  if (planDrag && planDrag.moved) {
+    const pts = routePoints(run.plan, planDrag.zone, planBase.w, planBase.h);
+    drawRoute(g, [pts[pts.length - 1], { x: planDrag.cur.x * planBase.w, y: planDrag.cur.y * planBase.h }], ZONES[planDrag.zone].color, true);
+  }
+}
+function boardPos(e) {
+  const r = $("planBoard").getBoundingClientRect();
+  return { x: clamp((e.clientX - r.left) / r.width, 0.03, 0.97), y: clamp((e.clientY - r.top) / r.height, 0.03, 0.97) };
+}
+$("planBoard").addEventListener("pointerdown", (e) => {
+  const p = boardPos(e), paths = run.plan.paths;
+  // Start on a zone, or on the end of a route to keep extending it.
+  let zone = ZONE_ORDER.find((z) => { const r = paths[z], end = r[r.length - 1]; return end && Math.hypot(end.x - p.x, (end.y - p.y) * 1.15) < 0.07; });
+  if (!zone) zone = ZONE_ORDER.find((z) => { const Z = ZONES[z]; return p.x >= Z.x0 && p.x <= Z.x1 && p.y >= Z.y0 && p.y <= Z.y1; });
+  if (!zone) return;
+  e.preventDefault();
+  try { $("planBoard").setPointerCapture(e.pointerId); } catch (err) {}
+  planDrag = { zone, start: p, cur: p, moved: false };
+});
+$("planBoard").addEventListener("pointermove", (e) => {
+  if (!planDrag) return;
+  planDrag.cur = boardPos(e);
+  planDrag.moved = Math.hypot(planDrag.cur.x - planDrag.start.x, planDrag.cur.y - planDrag.start.y) > 0.04;
+  drawPlan();
+});
+function endSwipe() {
+  if (!planDrag) return;
+  if (planDrag.moved) {
+    const route = run.plan.paths[planDrag.zone];
+    if (route.length >= MAX_ROUTE_STEPS) route.pop();
+    route.push({ x: +planDrag.cur.x.toFixed(3), y: +planDrag.cur.y.toFixed(3) });
+    run.plan.history.push(planDrag.zone);
+    persist();
+  }
+  planDrag = null; drawPlan();
+}
+$("planBoard").addEventListener("pointerup", endSwipe);
+$("planBoard").addEventListener("pointercancel", () => { planDrag = null; drawPlan(); });
+$("undoRoute").onclick = () => {
+  const z = run.plan.history.pop();
+  if (z) { run.plan.paths[z].pop(); persist(); drawPlan(); }
+};
+$("clearRoutes").onclick = () => {
+  for (const z of ZONE_ORDER) run.plan.paths[z] = [];
+  run.plan.history = []; persist(); drawPlan();
+};
 $("roster").addEventListener("click", (e) => {
+  const zb = e.target.closest("[data-zone]");
+  if (zb) {   // cycle this troop type's starting zone
+    const k = zb.dataset.zone, i = ZONE_ORDER.indexOf(run.plan.zone[k]);
+    run.plan.zone[k] = ZONE_ORDER[(i + 1) % ZONE_ORDER.length];
+    const scroll = $("camp").scrollTop; camp(); $("camp").scrollTop = scroll;
+    return;
+  }
   const b = e.target.closest("[data-recruit]"); if (!b || b.disabled) return;
   const k = b.dataset.recruit, cost = recruitCost(run, k);
   if (run.gold < cost || armySize(run) >= ARMY_CAP) return;
