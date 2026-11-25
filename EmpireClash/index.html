@@ -449,8 +449,8 @@ function ensurePlan(r) {
 }
 function addUnits(r, key, count) { r.army[key] = (r.army[key] || 0) + Math.max(0, Math.min(count, armyCap(r) - armySize(r))); }
 function mod(r, key, stat, v) { r.mods[key][stat] += v; }
-const ENEMY_CAP = 40;      // most troops an enemy fields
-const ARMY_CAP = 60;       // most troops your camp can hold
+const ENEMY_CAP = 75;      // most troops an enemy fields
+const ARMY_CAP = 75;       // most troops your camp can hold
 const armySize = (r) => Object.values(r.army).reduce((a, b) => a + b, 0);
 const armyCap = (r) => (r.mode === "campaign" ? CAMPAIGNS[r.campaign].cap : ARMY_CAP);
 const victoryGold = (r) => (r.mode === "campaign" ? 40 + r.stageIdx * 15 : 20 + r.level * 6) + r.tax;
@@ -468,9 +468,13 @@ function recruitCost(r, key) {
 }
 // The battlefield grows with the number of troops on it (up to twice the screen in each direction).
 function worldSize(r, vw, vh) {
-  if (r.mode === "campaign") return { W: Math.round(vw * 2), H: Math.round(vh * 2), f: 2 };   // campaign maps are extra large
+  if (r.mode === "campaign") {   // campaign maps are extra large, and a bit larger again for very big battles
+    const total = armySize(r) + (r.enemy ? Object.values(r.enemy.army).reduce((a, b) => a + b, 0) : 0);
+    const f = clamp(Math.sqrt(total / 24), 2, 2.5);
+    return { W: Math.round(vw * f), H: Math.round(vh * f), f };
+  }
   const total = armySize(r) + (r.enemy ? Object.values(r.enemy.army).reduce((a, b) => a + b, 0) : 0);
-  const f = clamp(Math.sqrt(total / 36), 1, 2);
+  const f = clamp(Math.sqrt(total / 36), 1, 2.5);
   return { W: Math.round(vw * f), H: Math.round(vh * f), f };
 }
 function makeEnemy(level, last, exclude) {
@@ -991,7 +995,7 @@ const CAMPAIGNS = {
   persia: {
     title: "Sasanian Persia", years: "AD 224 – 651", faction: "persia",
     intro: "Act I follows the real wars of the Sasanian shahs against Rome. Act II asks what if Persia had kept marching, all the way to Rome.",
-    startArmy: { sword: 6, spear: 8, archer: 7, knight: 3, catapult: 1 }, startGold: 60, cap: 40,
+    startArmy: { sword: 6, spear: 8, archer: 7, knight: 3, catapult: 1 }, startGold: 60, cap: 75,
     stages: [
       { id: "misiche", name: "Misiche", year: "AD 244", lon: 43.8, lat: 33.4, flag: [-19, 9],
         blurb: "Emperor Gordian III marches down the Euphrates toward Ctesiphon. Young Shah Shapur I meets him at the river.",
@@ -1251,6 +1255,8 @@ function campaignOwner(lon, lat, wins) {
   return o === "persia" ? "unclaimed" : o;
 }
 const toMapPx = (lon, lat) => [((lon - MAP_BOUNDS.lon0) / (MAP_BOUNDS.lon1 - MAP_BOUNDS.lon0)) * MAP_BOUNDS.w, ((MAP_BOUNDS.lat1 - lat) / (MAP_BOUNDS.lat1 - MAP_BOUNDS.lat0)) * MAP_BOUNDS.h];
+// Which side of a border gets the line, so every frontier is a single clean pixel wide.
+const BORDER_RANK = { persia: 0, rome: 1, armenia: 2, unclaimed: 3, north: 4, arabia: 5, sea: 9 };
 const WORLD_MAP_CACHE = {};
 // The map as it looks after `wins` victories: { canvas, center of your territory in map pixels }.
 function worldMapBase(wins) {
@@ -1275,7 +1281,7 @@ function worldMapBase(wins) {
     let col = base;
     const nb = [at(x + 1, y), at(x - 1, y), at(x, y + 1), at(x, y - 1)].filter(Boolean);
     if (o === "sea") { if (nb.some((n) => n !== "sea")) col = dark; else if ((x * 3 + y * 5) % 13 === 0) col = "#5d8fcc"; }
-    else if (nb.some((n) => n !== o && n !== "sea") && (o === "persia" || o === "rome" || ((x + y) % 2 === 0))) col = INK;   // frontier (coasts are drawn on the sea side)
+    else if (nb.some((n) => n !== o && n !== "sea" && BORDER_RANK[o] < BORDER_RANK[n])) col = INK;   // frontier: one solid line, drawn on one side (coasts are drawn on the sea side)
     else if ((o === "persia" || o === "unclaimed") && x + 1 < w && y + 1 < h && (at(x + 1, y) === o || at(x, y + 1) === o)
              && (provKey(x, y) !== provKey(x + 1, y) || provKey(x, y) !== provKey(x, y + 1))
              && (x + y) % 2 === 0) col = o === "persia" ? "#6e4b9a" : "#8f8264";               // province outlines
@@ -2075,6 +2081,7 @@ $("roster").addEventListener("click", (e) => {
   const k = b.dataset.recruit, cost = recruitCost(run, k);
   if (run.gold < cost || armySize(run) >= armyCap(run)) return;
   run.gold -= cost; run.army[k]++; run.recruited[k] = (run.recruited[k] || 0) + 1;
+  if (run.mode === "campaign" && run.enemy) run.enemy = stageEnemy(CAMPAIGNS[run.campaign].stages[run.stageIdx], run);
   const scroll = $("camp").scrollTop; camp(); $("camp").scrollTop = scroll;
 });
 $("marchBtn").onclick = () => startBattle();
@@ -2292,12 +2299,21 @@ $("mapLabels").addEventListener("click", (e) => {
 $("stageList").addEventListener("click", (e) => {
   const b = e.target.closest("[data-fight]"); if (!b) return;
   const st = CAMPAIGNS[run.campaign].stages[+b.dataset.fight];
-  run.enemy = { emp: st.enemy.emp, army: { ...st.enemy.army }, scale: st.enemy.scale, map: st.map, stageId: st.id };
+  run.enemy = stageEnemy(st, run);
   camp();
 });
 $("campBack").onclick = () => showCampaign();
 $("cmpHome").onclick = () => title();
 $("campaignBtn").onclick = () => openCampaign();
+// A campaign army is tuned for you fielding 40 troops; bring more and Rome brings more too.
+function stageEnemy(st, r) {
+  // (a bit less than one for one: big crowds jam at gates and bridges, which favors the defender)
+  const grow = Math.max(1, Math.pow(armySize(r) / 40, 0.75)), army = {};
+  for (const [k, c] of Object.entries(st.enemy.army)) army[k] = Math.round(c * grow);
+  let total = Object.values(army).reduce((a, b) => a + b, 0);
+  while (total > ENEMY_CAP) { const k = Object.keys(army).reduce((a, b) => (army[a] > army[b] ? a : b)); army[k]--; total--; }
+  return { emp: st.enemy.emp, army, scale: st.enemy.scale, map: st.map, stageId: st.id };
+}
 function finishCampaignBattle(won, survivors, E) {
   const C = CAMPAIGNS[run.campaign], st = C.stages[run.stageIdx];
   if (won) {

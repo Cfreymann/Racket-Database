@@ -35,7 +35,9 @@ browser to play.
   and each Act II win annexes a block of them: Syria and Palestine; Egypt and Libya; Anatolia and
   Thrace; Greece, Macedonia and Dalmatia; and Italy, Sicily and Africa.
 
-  * **Your army:** you start with 25 Persian troops and can grow to 40. Each win gives gold and a card.
+  * **Your army:** you start with 25 Persian troops and can grow to 75. Each win gives gold and a card.
+    Each battle's Roman army is tuned for you fielding 40. Bring more and Rome grows too, a bit less
+    than one for one (see `stageEnemy()`).
   * **Losing:** a loss doesn't end the campaign. Your army regroups and you retry the battle.
   * **Field size:** campaign fields are twice the screen in each direction, with the same troop size.
   * **The map:** it shows the frontier after the Peace of Nisibis (AD 299), including Armenia as a
@@ -89,7 +91,7 @@ so adding a battle means adding a stage with a `map` and an `enemy`.
    * **Upgrades:** health, attack, range, attack speed or healing.
    * **Treasury:** gold now, gold per win, or cheaper recruiting.
 2. **Camp:** your scouts reveal the next enemy empire and its army. Spend gold to recruit more of
-   any troop type you own, up to 60 troops. Then set your **battle plan**:
+   any troop type you own, up to 75 troops. Then set your **battle plan**:
    * **Zones:** each troop type starts in the Left flank, Center, Right flank or Rear. Tap the zone
      button on a troop row to change it.
    * **Routes:** on the plan board, swipe from a zone to give its troops a route. Each swipe adds a
@@ -104,7 +106,7 @@ so adding a battle means adding a stage with a `map` and an `enemy`.
    * **Enemy formation:** infantry in the center, cavalry split across both flanks, and archers
      and siege at the rear.
 3. **Battle:** armies fight on their own. Your troops start at the bottom and the enemy's at the
-   top. You can speed it up 2× or 3×. The battlefield grows with the number of troops (up to twice
+   top. You can speed it up 2× or 3×. The battlefield grows with the number of troops (up to 2.5 times
    the screen in each direction). The camera follows the fighting, you can drag to look around, and a
    minimap shows the whole field.
 4. **Win:** you get gold and a card pick, then a new random empire (never the same one twice in a
@@ -138,7 +140,7 @@ so adding a battle means adding a stage with a `map` and an `enemy`.
 | Sasanian Persia   | AD 224 – 651     | Immortal, Cataphract, War Elephant            |
 | Aztec Empire      | 1428 – 1521      | Jaguar Warrior, Eagle Warrior, Atlatl Thrower |
 
-Enemy armies have `4 + 1.5 × battle` troops (capped at 40), and their stats grow 10% per battle.
+Enemy armies have `4 + 1.5 × battle` troops (capped at 75), and their stats grow 10% per battle.
 
 ## Tuning
 
