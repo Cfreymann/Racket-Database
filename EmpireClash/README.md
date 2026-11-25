@@ -25,8 +25,13 @@ browser to play.
   * **Losing:** a loss doesn't end the campaign. Your army regroups and you retry the battle.
   * **Field size:** campaign fields are twice the screen in each direction, with the same troop size.
   * **The map:** it shows the frontier after the Peace of Nisibis (AD 299), including Armenia as a
-    buffer kingdom and the Arabian desert. Its seas, rivers, mountains and cities come from rough
-    longitude/latitude outlines, rasterized to pixels.
+    buffer kingdom and the Arabian desert. It is drawn at 4 pixels per degree and scrolls sideways.
+    Its seas, lakes, rivers (Euphrates, Tigris, Karun, Nile), mountains, forests, deserts, marshes and
+    cities come from rough longitude/latitude outlines, rasterized to pixels.
+  * **Growing territory:** Persia starts as just Persis (Fars). Each victory annexes a region:
+    Mesopotamia, Khuzestan and Media; Atropatene, Rey and Hyrcania; Armenia, Kerman and Khorasan;
+    Sakastan, the Kushan lands and Oman; and finally Nisibis and Singara, ceded by Rome. Back on the
+    map, your color floods into the new lands from the battle site. See `conquestStage()`.
 
 * **Endless:** the original mode, described below. It has its own save, separate from the campaign.
 

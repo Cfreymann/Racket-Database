@@ -131,8 +131,10 @@ canvas { image-rendering: crisp-edges; image-rendering: pixelated; }
 .lineup canvas { width: 52px; height: 52px; }
 
 /* Campaign map */
-.map-wrap { position: relative; border: 3px solid var(--ink); background: #3b6ea8; box-shadow: 0 4px 0 var(--ink); }
-#worldMap { display: block; width: 100%; }
+.map-wrap { flex: none; border: 3px solid var(--ink); background: #3b6ea8; box-shadow: 0 4px 0 var(--ink); overflow-x: auto; overflow-y: hidden; -webkit-overflow-scrolling: touch; }
+.map-inner { position: relative; width: 480px; }
+#worldMap { display: block; width: 480px; height: 270px; }
+.map-toast { margin: 0; font: 700 14px/1.35 var(--body); color: #4a2a72; background: #efe0ff; border: 2px solid #4a2a72; padding: 6px 10px; }
 .map-label {
   position: absolute; transform: translate(-50%, -50%); pointer-events: none; white-space: nowrap;
   font: 700 9px/1 var(--body); letter-spacing: 0.06em; text-transform: uppercase;
@@ -217,10 +219,11 @@ canvas { image-rendering: crisp-edges; image-rendering: pixelated; }
       <div><div class="eyebrow" id="cmpYears">Campaign</div><h2 id="cmpTitle">Sasanian Persia</h2></div>
       <span class="gold panel" style="padding:8px 12px"><span class="coin"></span><span id="cmpGold">0</span></span>
     </div>
-    <div class="map-wrap"><canvas id="worldMap" aria-label="Map of the Roman and Sasanian empires around AD 300 with the campaign's battle sites"></canvas><div id="mapLabels"></div></div>
+    <div class="map-wrap" id="mapWrap"><div class="map-inner"><canvas id="worldMap" aria-label="Map of the Roman and Sasanian empires around AD 300 with the campaign's battle sites"></canvas><div id="mapLabels"></div></div></div>
+    <p class="map-toast" id="mapToast" hidden></p>
     <div class="legend">
       <span><i style="background:#8a63b8"></i>Sasanian Empire</span><span><i style="background:#c4554a"></i>Roman Empire</span>
-      <span><i style="background:#b59ac9"></i>Armenia (buffer kingdom)</span><span><i style="background:#dcc38e"></i>Arabia</span>
+      <span><i style="background:#b9ab8c"></i>Unclaimed</span><span><i style="background:#b59ac9"></i>Armenia (buffer kingdom)</span><span><i style="background:#dcc38e"></i>Arabia</span>
     </div>
     <div class="stages" id="stageList"></div>
     <button class="btn ghost small" id="cmpHome" style="align-self:center">Title screen</button>
@@ -973,50 +976,59 @@ const CAMPAIGNS = {
     intro: "Lead the Sasanian shahs against Rome, Persia's great rival for four centuries.",
     startArmy: { sword: 6, spear: 8, archer: 7, knight: 3, catapult: 1 }, startGold: 60, cap: 40,
     stages: [
-      { id: "misiche", name: "Misiche", year: "AD 244", lon: 43.8, lat: 33.4, flag: [-14, 7],
+      { id: "misiche", name: "Misiche", year: "AD 244", lon: 43.8, lat: 33.4, flag: [-19, 9],
         blurb: "Emperor Gordian III marches down the Euphrates toward Ctesiphon. Young Shah Shapur I meets him at the river.",
         terrainNote: "The Euphrates splits the field. Two bridges.",
         enemy: { emp: "rome", army: { legionary: 18, equites: 6, ballista: 2 }, scale: 0.95 },
         map: { ground: "grass",
                rivers: [{ pts: [[0, 0.5], [0.25, 0.47], [0.5, 0.52], [0.75, 0.48], [1, 0.51]], w: 0.05 }],
-               bridges: [{ x: 0.25, y: 0.47, w: 0.08, h: 0.09 }, { x: 0.75, y: 0.48, w: 0.08, h: 0.09 }],
+               bridges: [{ x: 0.25, y: 0.47, w: 0.11, h: 0.09 }, { x: 0.75, y: 0.48, w: 0.11, h: 0.09 }],
                rocks: [{ x: 0.5, y: 0.58, r: 0.025 }, { x: 0.08, y: 0.42, r: 0.02 }, { x: 0.92, y: 0.57, r: 0.02 }] } },
-      { id: "barbalissos", name: "Barbalissos", year: "AD 253", lon: 38.0, lat: 36.0, flag: [-14, 4],
+      { id: "barbalissos", name: "Barbalissos", year: "AD 253", lon: 38.0, lat: 36.0, flag: [-19, 5],
         blurb: "Shapur strikes into Roman Syria. A Roman army of 60,000 waits at the great bend of the Euphrates.",
         terrainNote: "A slanting river with a single bridge. Rocky banks.",
         enemy: { emp: "rome", army: { legionary: 20, equites: 7, ballista: 3 }, scale: 0.95 },
         map: { ground: "steppe",
                rivers: [{ pts: [[0, 0.43], [0.35, 0.47], [0.65, 0.53], [1, 0.57]], w: 0.05 }],
-               bridges: [{ x: 0.5, y: 0.5, w: 0.09, h: 0.095 }],
+               bridges: [{ x: 0.5, y: 0.5, w: 0.12, h: 0.1 }],
                rocks: [{ x: 0.15, y: 0.55, r: 0.03 }, { x: 0.22, y: 0.56, r: 0.02 }, { x: 0.85, y: 0.45, r: 0.03 }, { x: 0.3, y: 0.38, r: 0.025 }, { x: 0.7, y: 0.62, r: 0.02 }] } },
-      { id: "edessa", name: "Edessa", year: "AD 260", lon: 38.8, lat: 37.2, flag: [-4, -10],
+      { id: "edessa", name: "Edessa", year: "AD 260", lon: 38.8, lat: 37.2, flag: [-6, -13],
         blurb: "Emperor Valerian holds the walls of Edessa. Break through the gates and a Roman emperor could become your prisoner.",
         terrainNote: "City walls with two gates guard the Roman lines.",
         enemy: { emp: "rome", army: { legionary: 20, equites: 6, ballista: 4 }, scale: 0.9 },
         map: { ground: "steppe",
                walls: [{ x0: 0, y0: 0.42, x1: 0.3, y1: 0.445 }, { x0: 0.38, y0: 0.42, x1: 0.62, y1: 0.445 }, { x0: 0.7, y0: 0.42, x1: 1, y1: 0.445 }],
                rocks: [{ x: 0.15, y: 0.53, r: 0.025 }, { x: 0.5, y: 0.54, r: 0.03 }, { x: 0.85, y: 0.52, r: 0.025 }] } },
-      { id: "singara", name: "Singara", year: "AD 344", lon: 41.9, lat: 36.3, flag: [7, -9],
+      { id: "singara", name: "Singara", year: "AD 344", lon: 41.9, lat: 36.3, flag: [10, -12],
         blurb: "Shapur II meets Constantius II in the desert below the Sinjar hills, in a battle that rages into the night.",
         terrainNote: "Desert with rock ridges. Three narrow passes.",
         enemy: { emp: "rome", army: { legionary: 22, equites: 10, ballista: 4 }, scale: 1.0 },
         map: { ground: "sand",
                rocks: [0.08, 0.13, 0.18, 0.23, 0.28, 0.42, 0.47, 0.52, 0.57, 0.72, 0.77, 0.82, 0.87].map((x, i) => ({ x, y: 0.5 + (i % 2 ? 0.012 : -0.008), r: 0.032 })),
                lakes: [{ x: 0.9, y: 0.33, rx: 0.06, ry: 0.025 }] } },
-      { id: "ctesiphon", name: "Ctesiphon", year: "AD 363", lon: 44.6, lat: 33.1, flag: [9, 7],
+      { id: "ctesiphon", name: "Ctesiphon", year: "AD 363", lon: 44.6, lat: 33.1, flag: [12, 9],
         blurb: "Emperor Julian has crossed the Tigris with the largest Roman army ever sent east. Defend the capital.",
         terrainNote: "The wide Tigris with three bridges. Rome's largest army.",
         enemy: { emp: "rome", army: { legionary: 26, equites: 10, ballista: 4 }, scale: 1.15 },
         map: { ground: "grass",
                rivers: [{ pts: [[0, 0.52], [0.3, 0.5], [0.7, 0.53], [1, 0.5]], w: 0.07 }],
-               bridges: [{ x: 0.18, y: 0.506, w: 0.08, h: 0.11 }, { x: 0.5, y: 0.515, w: 0.08, h: 0.11 }, { x: 0.82, y: 0.523, w: 0.08, h: 0.11 }],
+               bridges: [{ x: 0.18, y: 0.506, w: 0.1, h: 0.11 }, { x: 0.5, y: 0.515, w: 0.1, h: 0.11 }, { x: 0.82, y: 0.523, w: 0.1, h: 0.11 }],
                rocks: [{ x: 0.34, y: 0.4, r: 0.02 }, { x: 0.66, y: 0.62, r: 0.02 }] } },
     ],
   },
 };
 
 // ---------- Historical map (around AD 300), drawn as pixel art from rough lon/lat outlines.
-const MAP_BOUNDS = { lon0: 26, lon1: 66, lat0: 22, lat1: 44, w: 120, h: 66 };
+const MAP_BOUNDS = { lon0: 26, lon1: 66, lat0: 21.5, lat1: 44, w: 160, h: 90 };   // 4 pixels per degree
+const LAKES = [[42.9, 38.6, 0.7, 0.35], [45.6, 37.6, 0.35, 0.6], [45.3, 40.4, 0.4, 0.2]];   // Van, Urmia, Sevan: lon, lat, rx, ry
+// Map features drawn as texture over the land: [lon0, lon1, lat0, lat1, color, pattern]
+const MAP_TEXTURES = [
+  [35, 41.5, 40.3, 41.3, "#4f7a3a", 5],     // Pontic forests
+  [48.8, 54.6, 36.2, 37.1, "#4f7a3a", 4],   // Hyrcanian forest
+  [52, 56.5, 33.4, 35.4, "#efe6d2", 4],     // Dasht-e Kavir salt desert
+  [37.5, 42, 31.5, 34.6, "#e6d3a3", 6],     // Syrian desert
+  [46.3, 47.9, 30.6, 31.9, "#5a9a8a", 3],   // Mesopotamian marshes
+];
 const SEAS = [
   // Mediterranean (east), Aegean, Black Sea, Caspian, Persian Gulf, Gulf of Oman / Arabian Sea, Red Sea
   [[26, 31.5], [26, 36.9], [27.5, 37.0], [28.5, 36.6], [30.5, 36.4], [32, 36.2], [33.5, 36.2], [34.7, 36.8], [36.1, 36.7], [35.8, 35.6], [35.9, 34.5], [35.2, 33.2], [34.6, 31.8], [34.2, 31.3], [33, 31.1], [32, 31.3], [30.5, 31.5], [29, 30.9], [27, 31.3]],
@@ -1031,6 +1043,7 @@ const RIVERS = [
   [[38.6, 39.3], [38.3, 38.0], [37.9, 37.0], [38.0, 36.0], [38.8, 35.9], [39.8, 35.6], [40.5, 34.9], [41.5, 34.3], [42.8, 33.6], [43.8, 33.3], [44.5, 32.4], [45.5, 31.6], [46.6, 31.0], [47.6, 30.8], [48.1, 30.3]],   // Euphrates
   [[40.6, 38.4], [41.2, 37.9], [42.3, 37.3], [42.9, 36.5], [43.2, 35.6], [43.8, 34.6], [44.3, 33.6], [44.6, 33.1], [45.6, 32.5], [46.6, 31.8], [47.4, 31.2], [47.9, 30.6]],                                         // Tigris
   [[50.6, 33.0], [49.6, 32.3], [48.9, 31.8], [48.6, 31.0], [48.3, 30.4]],                                                                                                                                       // Karun
+  [[32.9, 21.5], [32.9, 24.1], [32.7, 25.7], [31.6, 26.3], [30.8, 27.5], [31.2, 29.0], [31.2, 30.1], [30.5, 31.3]], [[31.2, 30.1], [31.9, 31.4]],                                                               // Nile and its delta
 ];
 const MOUNTAINS = [
   [[31, 37.4], [33.5, 37.3], [36, 37.6], [38.5, 38.4], [41, 38.6], [43, 38.2]],            // Taurus
@@ -1041,14 +1054,21 @@ const MOUNTAINS = [
 ];
 const MAP_LABELS = [
   { text: "Roman Empire", lon: 30.5, lat: 39.4, cls: "big", color: "#ffe1dc" },
-  { text: "Sasanian Empire", lon: 53.5, lat: 32.6, cls: "big", color: "#efe0ff" },
-  { text: "Armenia", lon: 44.2, lat: 40.4, cls: "" , color: "#fff8e6" },
+  { text: "Armenia", lon: 44.2, lat: 40.6, cls: "", color: "#fff8e6" },
   { text: "Arabia", lon: 41, lat: 27, cls: "", color: "#6e5a45" },
-  { text: "Ctesiphon", lon: 44.9, lat: 34.3, cls: "city", color: "#fff8e6", dot: [44.6, 33.1], capital: true },
-  { text: "Antioch", lon: 33.2, lat: 35.6, cls: "city", color: "#fff8e6", dot: [36.2, 36.2] },
-  { text: "Constantinople", lon: 27.2, lat: 42.6, cls: "city", color: "#fff8e6", dot: [29.0, 41.0] },
-  { text: "Istakhr", lon: 52.6, lat: 29.7, cls: "city", color: "#fff8e6", dot: [52.9, 29.9] },
-  { text: "Merv", lon: 61.0, lat: 38.8, cls: "city", color: "#fff8e6", dot: [61.8, 37.6] },
+  { text: "Ctesiphon", lon: 45.6, lat: 34.0, cls: "city", color: "#fff8e6", dot: [44.6, 33.1], capital: true },
+  { text: "Antioch", lon: 33.6, lat: 35.8, cls: "city", color: "#fff8e6", dot: [36.2, 36.2] },
+  { text: "Constantinople", lon: 28.2, lat: 42.4, cls: "city", color: "#fff8e6", dot: [29.0, 41.0] },
+  { text: "Alexandria", lon: 28.6, lat: 30.6, cls: "city", color: "#fff8e6", dot: [29.9, 31.2] },
+  { text: "Jerusalem", lon: 33.6, lat: 31.2, cls: "city", color: "#fff8e6", dot: [35.2, 31.8] },
+  { text: "Palmyra", lon: 38.3, lat: 34.0, cls: "city", color: "#fff8e6", dot: [38.3, 34.6] },
+  { text: "Nisibis", lon: 41.2, lat: 37.7, cls: "city", color: "#fff8e6", dot: [41.2, 37.1] },
+  { text: "Susa", lon: 48.9, lat: 32.6, cls: "city", color: "#fff8e6", dot: [48.3, 32.2] },
+  { text: "Istakhr", lon: 53.2, lat: 30.5, cls: "city", color: "#fff8e6", dot: [52.9, 29.9] },
+  { text: "Rey", lon: 51.4, lat: 35.1, cls: "city", color: "#fff8e6", dot: [51.4, 35.6] },
+  { text: "Merv", lon: 61.8, lat: 38.3, cls: "city", color: "#fff8e6", dot: [61.8, 37.6] },
+  { text: "Nishapur", lon: 58.8, lat: 35.6, cls: "city", color: "#fff8e6", dot: [58.8, 36.2] },
+  { dot: [38.8, 37.2] }, { dot: [48.5, 34.8] }, { dot: [39.7, 41.0] },   // Edessa, Hamadan, Trebizond (dots only)
 ];
 function lerpTable(table, v) {   // table: [[key, value]...] sorted by key descending or ascending
   for (let i = 1; i < table.length; i++) {
@@ -1072,6 +1092,7 @@ const ARABIA_EDGE = [[34, 29.4], [38.5, 32.0], [41, 31.3], [44, 30.6], [46.5, 29
 const STEPPE_EDGE = [[52.5, 39.6], [54, 38.8], [57, 38.6], [60, 38.6], [63, 39.2], [66, 38.5]];
 function mapOwner(lon, lat) {
   if (SEAS.some((p) => pointInPoly(p, lon, lat))) return "sea";
+  if (LAKES.some(([x, y, rx, ry]) => ((lon - x) / rx) ** 2 + ((lat - y) / ry) ** 2 < 1)) return "sea";
   if (lat > 41.6 && lon > 41.6) return "north";
   if (lon < lerpTable(ROMAN_FRONTIER, lat)) return lat < 29.4 && lon > 34.6 ? "arabia" : "rome";
   if (lon > 52.5 && lat > lerpTable(STEPPE_EDGE, lon)) return "north";
@@ -1083,16 +1104,42 @@ function mapOwner(lon, lat) {
 const OWNER_COLORS = {
   sea: ["#3b6ea8", "#2b4f7a"], rome: ["#c4554a", "#7a2a22"], persia: ["#8a63b8", "#4a2a72"],
   armenia: ["#b59ac9", "#5e4a78"], arabia: ["#dcc38e", "#9c8250"], north: ["#b8b77a", "#6e6c40"],
+  unclaimed: ["#b9ab8c", "#7c6e50"],
 };
+// The campaign starts with Persis (Fars), where Ardashir I rose in AD 224. Each victory adds a region.
+const CONQUESTS = ["Persis", "Mesopotamia, Khuzestan and Media", "Atropatene, Rey and Hyrcania", "Armenia, Kerman and Khorasan",
+                   "Sakastan, the Kushan lands and Oman", "Nisibis and Singara, ceded by Rome"];
+function conquestStage(lon, lat, owner) {
+  if (owner === "rome") return lon > 40.2 && lat > 35.0 && lat < 38.0 ? 5 : -1;
+  if (owner === "armenia") return 3;
+  if (owner !== "persia") return -1;
+  if (lon >= 50.3 && lon <= 56.8 && lat >= 26.6 && lat <= 31.6) return 0;
+  if (lon < 50.3 && lat < 36.2) return 1;
+  if (lat >= 33 && lon < 56.8) return 2;
+  if (lon < 62) return 3;
+  return 4;
+}
+// Owner of a map pixel once you have won `wins` battles.
+function campaignOwner(lon, lat, wins) {
+  const o = mapOwner(lon, lat), st = conquestStage(lon, lat, o);
+  if (st < 0) return o;
+  if (st <= wins) return "persia";
+  return o === "persia" ? "unclaimed" : o;
+}
 const toMapPx = (lon, lat) => [((lon - MAP_BOUNDS.lon0) / (MAP_BOUNDS.lon1 - MAP_BOUNDS.lon0)) * MAP_BOUNDS.w, ((MAP_BOUNDS.lat1 - lat) / (MAP_BOUNDS.lat1 - MAP_BOUNDS.lat0)) * MAP_BOUNDS.h];
-let WORLD_MAP_BASE = null;
-function worldMapBase() {
-  if (WORLD_MAP_BASE) return WORLD_MAP_BASE;
+const WORLD_MAP_CACHE = {};
+// The map as it looks after `wins` victories: { canvas, center of your territory in map pixels }.
+function worldMapBase(wins) {
+  if (WORLD_MAP_CACHE[wins]) return WORLD_MAP_CACHE[wins];
   const { w, h } = MAP_BOUNDS, c = makeCanvas(w, h), g = c.getContext("2d");
+  const lonAt = (x) => MAP_BOUNDS.lon0 + ((x + 0.5) / w) * (MAP_BOUNDS.lon1 - MAP_BOUNDS.lon0);
+  const latAt = (y) => MAP_BOUNDS.lat1 - ((y + 0.5) / h) * (MAP_BOUNDS.lat1 - MAP_BOUNDS.lat0);
   const own = [];
+  let sx = 0, sy = 0, sn = 0;
   for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
-    const lon = MAP_BOUNDS.lon0 + ((x + 0.5) / w) * (MAP_BOUNDS.lon1 - MAP_BOUNDS.lon0), lat = MAP_BOUNDS.lat1 - ((y + 0.5) / h) * (MAP_BOUNDS.lat1 - MAP_BOUNDS.lat0);
-    own.push(mapOwner(lon, lat));
+    const o = campaignOwner(lonAt(x), latAt(y), wins);
+    own.push(o);
+    if (o === "persia") { sx += x; sy += y; sn++; }
   }
   const at = (x, y) => (x < 0 || y < 0 || x >= w || y >= h ? null : own[y * w + x]);
   for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
@@ -1102,8 +1149,12 @@ function worldMapBase() {
     if (o === "sea") { if (nb.some((n) => n !== "sea")) col = dark; else if ((x * 3 + y * 5) % 13 === 0) col = "#5d8fcc"; }
     else if (nb.some((n) => n === "sea")) col = dark;                                     // coastline
     else if (nb.some((n) => n !== o && n !== "sea") && (o === "persia" || o === "rome" || ((x + y) % 2 === 0))) col = INK;   // frontier
-    else if (o === "armenia" && (x + y) % 4 === 0) col = "#d9c08a";                       // client kingdom stripes
-    else if ((o === "arabia" || o === "north") && (x * 7 + y * 11) % 17 === 0) col = dark;  // desert / steppe speckle
+    else if (o === "armenia" && (x + y) % 4 === 0) col = "#d9c08a";                       // buffer kingdom stripes
+    else if ((o === "arabia" || o === "north" || o === "unclaimed") && (x * 7 + y * 11) % 17 === 0) col = dark;
+    else {
+      const lon = lonAt(x), lat = latAt(y);
+      for (const [l0, l1, a0, a1, tc, pat] of MAP_TEXTURES) if (lon >= l0 && lon <= l1 && lat >= a0 && lat <= a1 && (x + y * 3) % pat === 0) col = tc;
+    }
     g.fillStyle = col; g.fillRect(x, y, 1, 1);
   }
   const line = (pts, color) => {
@@ -1118,8 +1169,9 @@ function worldMapBase() {
     const [x0, y0] = toMapPx(...m[i - 1]), [x1, y1] = toMapPx(...m[i]), n = Math.max(1, Math.round(Math.hypot(x1 - x0, y1 - y0) / 4));
     for (let k = 0; k < n; k++) {
       const px = Math.round(x0 + ((x1 - x0) * k) / n), py = Math.round(y0 + ((y1 - y0) * k) / n);
-      g.fillStyle = "#4a3a2c"; g.fillRect(px, py - 1, 1, 1); g.fillRect(px - 1, py, 3, 1);
+      g.fillStyle = "#4a3a2c"; g.fillRect(px, py - 1, 1, 1); g.fillRect(px - 1, py, 3, 1); g.fillRect(px - 2, py + 1, 5, 1);
       g.fillStyle = "#e8dcc4"; g.fillRect(px, py - 1, 1, 1);
+      g.fillStyle = "#7a6650"; g.fillRect(px - 1, py + 1, 1, 1);
     }
   }
   for (const l of MAP_LABELS) if (l.dot) {
@@ -1127,7 +1179,7 @@ function worldMapBase() {
     g.fillStyle = INK; g.fillRect(Math.round(x) - 1, Math.round(y) - 1, l.capital ? 3 : 2, l.capital ? 3 : 2);
     g.fillStyle = l.capital ? "#ffe38a" : "#fff8e6"; g.fillRect(Math.round(x), Math.round(y), 1, 1);
   }
-  return (WORLD_MAP_BASE = c);
+  return (WORLD_MAP_CACHE[wins] = { canvas: c, cx: sn ? sx / sn : w / 2, cy: sn ? sy / sn : h / 2 });
 }
 
 // =====================================================================  BATTLE
@@ -1197,7 +1249,12 @@ class Battle {
       u.navT = (u.navT || 0) - this.dtNow;
       if (!u.nav || u.navT <= 0 || Math.hypot(u.nav.gx - gx, u.nav.gy - gy) > 40) {
         u.navT = 0.8 + Math.random() * 0.5;
-        u.nav = { gx, gy, i: 0, pts: T.los(u.x, u.y, gx, gy) ? null : T.path(u.x, u.y, gx, gy) };
+        let pts = T.los(u.x, u.y, gx, gy) ? null : T.path(u.x, u.y, gx, gy);
+        if (pts === null && !T.los(u.x, u.y, gx, gy) && T.bridges.length) {   // no path found: head for the nearest bridge
+          const br = T.bridges.reduce((a, b) => (Math.hypot(b.x - u.x, b.y - u.y) < Math.hypot(a.x - u.x, a.y - u.y) ? b : a));
+          pts = [{ x: br.x, y: br.y }];
+        }
+        u.nav = { gx, gy, i: 0, pts };
       }
       const pts = u.nav.pts;
       if (pts) {
@@ -1207,17 +1264,27 @@ class Battle {
     }
     const dx = tx - u.x, dy = ty - u.y, d = Math.hypot(dx, dy) || 1, s = Math.min(step, d);
     u.x += (dx / d) * s; u.y += (dy / d) * s;
+    u.want = (u.want || 0) + s;
     return dx;
   }
   updateGroups(dt, live) {
     for (const g of this.groups) {
       const marching = g.members.filter((u) => !u.dead && !u.engaged);
       if (!marching.length) continue;
-      // wait for stragglers so the block doesn't stretch out
-      const cx = marching.reduce((a, u) => a + u.x - u.form.dx, 0) / marching.length;
-      const cy = marching.reduce((a, u) => a + u.y - u.form.dy, 0) / marching.length;
-      if (Math.hypot(g.x - cx, g.y - cy) > 22 && (g.wait = (g.wait || 0) + dt) < 1.5) continue;
-      g.wait = 0;
+      // Wait briefly for stragglers so the block doesn't stretch out. Troops squeezing through a
+      // bridge or gate (heading for the anchor itself) don't count, and after a wait the anchor
+      // gets a stretch of free movement so it can never creep along a step at a time.
+      const inLine = marching.filter((u) => !u.squeeze);
+      if (g.free > 0) g.free -= dt;
+      else if (inLine.length) {
+        const cx = inLine.reduce((a, u) => a + u.x - u.form.dx, 0) / inLine.length;
+        const cy = inLine.reduce((a, u) => a + u.y - u.form.dy, 0) / inLine.length;
+        if (Math.hypot(g.x - cx, g.y - cy) > 22) {
+          g.wait = (g.wait || 0) + dt;
+          if (g.wait < 1.2) continue;
+          g.wait = 0; g.free = 2;
+        } else g.wait = 0;
+      }
       let goal;
       if (g.step < g.route.length) {
         goal = g.route[g.step];
@@ -1337,7 +1404,8 @@ class Battle {
         u.engaged = dist <= reach + (onRoute ? routeBuffer : u.range ? 20 : 60);
         if (!u.engaged) {
           let gx = g.x + u.form.dx, gy = g.y + u.form.dy;
-          if (this.terrain && this.terrain.blocked(gx, gy)) { gx = g.x; gy = g.y; }   // squeeze through bridges and gates
+          u.squeeze = !!(this.terrain && this.terrain.blocked(gx, gy));
+          if (u.squeeze) { gx = g.x; gy = g.y; }   // squeeze through bridges and gates
           const sx = gx - u.x, sy = gy - u.y, sd = Math.hypot(sx, sy);
           if (sd > 2) {
             const step = Math.min(sd, u.speed * dt);
@@ -1405,6 +1473,17 @@ class Battle {
       else { u.x = u.px; u.y = u.py; }
       if (T.blocked(u.x, u.y)) { const p = T.nearestFree(u.x, u.y); u.x = p.x; u.y = p.y; }
     }
+    // Unstick: a troop that keeps trying to move but barely gets anywhere re-plans and sidesteps.
+    if (this.terrain) for (const u of live) {
+      if (u.want > 0.5 && Math.hypot(u.x - u.px, u.y - u.py) < u.want * 0.3) u.stuckT = (u.stuckT || 0) + dt;
+      else u.stuckT = 0;
+      u.want = 0;
+      if (u.stuckT > 0.7) {
+        u.stuckT = 0; u.navT = 0;
+        const nx = u.x + rand(-10, 10), ny = u.y + rand(-10, 10);
+        if (!this.terrain.blocked(nx, ny)) { u.x = nx; u.y = ny; }
+      }
+    }
     // projectiles
     for (const s of this.shots) {
       s.t += dt;
@@ -1425,6 +1504,16 @@ class Battle {
     for (const p of this.parts) { p.t += dt; p.vy += 120 * dt; p.x += p.vx * dt; p.y += p.vy * dt; }
     this.parts = this.parts.filter((p) => p.t < p.life);
     this.shake = Math.max(0, this.shake - dt * 10);
+    // Stalemate breaker: once the armies have clashed, if nobody takes damage for 6 seconds,
+    // everyone drops formation and routes and charges the nearest enemy with fresh paths.
+    const hpNow = this.sideHp(0) + this.sideHp(1);
+    if (this.lastHp === undefined) this.lastHp = hpNow;
+    if (hpNow < this.lastHp - 0.5) { this.quietT = 0; this.lastHp = hpNow; this.fought = true; }
+    else if (!this.over && (this.quietT = (this.quietT || 0) + dt) > (this.fought ? 6 : 25)) {
+      this.quietT = 0;
+      for (const u of live) { u.group = null; u.path = null; u.navT = 0; u.engaged = true; }
+      this.groups = [];
+    }
     if (!this.over) {
       const a = this.alive(0), b = this.alive(1);
       if (a === 0 || b === 0 || this.t > 120) {
@@ -1916,21 +2005,56 @@ function showCampaign() {
   if (done) $("cmpRestart").onclick = () => { store.campaign = newCampaignRun(run.campaign); persist(); run = store.campaign; showCampaign(); };
   requestAnimationFrame(drawCampaignMap);
 }
+let mapAnim = 0;
 function drawCampaignMap() {
-  const C = CAMPAIGNS[run.campaign], c = $("worldMap"), base = worldMapBase();
-  c.width = base.width; c.height = base.height;
-  const g = c.getContext("2d"); g.imageSmoothingEnabled = false; g.drawImage(base, 0, 0);
-  C.stages.forEach((st) => {    // leader line from the battle site to its flag
+  const C = CAMPAIGNS[run.campaign], c = $("worldMap"), wins = Math.min(run.stageIdx, C.stages.length);
+  const from = Math.min(run.mapWins ?? 0, wins), target = worldMapBase(wins);
+  c.width = target.canvas.width; c.height = target.canvas.height;
+  const g = c.getContext("2d"); g.imageSmoothingEnabled = false;
+  const overlay = () => C.stages.forEach((st) => {    // leader line from each battle site to its flag
     const [x, y] = toMapPx(st.lon, st.lat);
     pixelLine(g, x, y, x + st.flag[0], y + st.flag[1], 1, INK);
     g.fillStyle = "#ffe38a"; g.fillRect(Math.round(x), Math.round(y), 1, 1);
   });
   const W = MAP_BOUNDS.w, H = MAP_BOUNDS.h, pos = (x, y) => `left:${(x / W) * 100}%;top:${(y / H) * 100}%`;
-  $("mapLabels").innerHTML = MAP_LABELS.map((l) => { const [x, y] = toMapPx(l.lon, l.lat); return `<span class="map-label ${l.cls}" style="${pos(x, y)};color:${l.color}">${l.text}</span>`; }).join("")
-    + C.stages.map((st, i) => {
-      const [x, y] = toMapPx(st.lon, st.lat), state = i < run.stageIdx ? "won" : i === run.stageIdx ? "current" : "locked";
-      return `<button class="map-flag ${state}" data-stage="${i}" style="${pos(x + st.flag[0], y + st.flag[1])}" aria-label="Battle of ${st.name}">${state === "won" ? "✓" : i + 1}</button>`;
-    }).join("");
+  const labels = () => {
+    $("mapLabels").innerHTML = MAP_LABELS.filter((l) => l.text).map((l) => { const [x, y] = toMapPx(l.lon, l.lat); return `<span class="map-label ${l.cls}" style="${pos(x, y)};color:${l.color}">${l.text}</span>`; }).join("")
+      + `<span class="map-label big" style="${pos(target.cx, target.cy)};color:#efe0ff">${wins >= 3 ? "Sasanian Empire" : "Persia"}</span>`
+      + C.stages.map((st, i) => {
+        const [x, y] = toMapPx(st.lon, st.lat), state = i < run.stageIdx ? "won" : i === run.stageIdx ? "current" : "locked";
+        return `<button class="map-flag ${state}" data-stage="${i}" style="${pos(x + st.flag[0], y + st.flag[1])}" aria-label="Battle of ${st.name}">${state === "won" ? "✓" : i + 1}</button>`;
+      }).join("");
+  };
+  // Center the scrollable map on the next battle (or your heartland once the campaign is won).
+  const focus = C.stages[Math.min(wins, C.stages.length - 1)], [fx] = toMapPx(focus.lon, focus.lat);
+  $("mapWrap").scrollLeft = (fx / W) * 480 - $("mapWrap").clientWidth / 2;
+  labels();
+  cancelAnimationFrame(mapAnim);
+  if (from >= wins) { g.drawImage(target.canvas, 0, 0); overlay(); $("mapToast").hidden = true; return; }
+  // Your color floods out from the battle site into the newly won lands.
+  $("mapToast").hidden = false;
+  $("mapToast").textContent = `Your borders grow: ${CONQUESTS.slice(from + 1, wins + 1).join("; ")}.`;
+  const before = worldMapBase(from).canvas;
+  const a = before.getContext("2d").getImageData(0, 0, W, H), bData = target.canvas.getContext("2d").getImageData(0, 0, W, H);
+  const site = C.stages[wins - 1], [ox, oy] = toMapPx(site.lon, site.lat), diff = [];
+  for (let i = 0; i < W * H; i++) {
+    const k = i * 4;
+    if (a.data[k] !== bData.data[k] || a.data[k + 1] !== bData.data[k + 1] || a.data[k + 2] !== bData.data[k + 2]) {
+      diff.push([i, Math.hypot((i % W) - ox, Math.floor(i / W) - oy) + Math.random() * 6]);
+    }
+  }
+  diff.sort((p, q) => p[1] - q[1]);
+  const frame = g.createImageData(W, H), t0 = performance.now(), dur = 1600;
+  frame.data.set(a.data);
+  let shown = 0;
+  const step = (now) => {
+    const k = Math.min(1, (now - t0) / dur), upto = Math.floor(diff.length * k);
+    for (; shown < upto; shown++) { const i = diff[shown][0] * 4; for (let j = 0; j < 4; j++) frame.data[i + j] = bData.data[i + j]; }
+    g.putImageData(frame, 0, 0); overlay();
+    if (k < 1) mapAnim = requestAnimationFrame(step);
+    else { run.mapWins = wins; saveRun(); }
+  };
+  mapAnim = requestAnimationFrame(step);
 }
 $("mapLabels").addEventListener("click", (e) => {
   const f = e.target.closest("[data-stage]"); if (!f) return;
@@ -1956,6 +2080,7 @@ function finishCampaignBattle(won, survivors, E) {
       <div class="eyebrow">Battle of ${st.name} · ${st.year}</div>
       <h2 style="color: var(--green)">Victory!</h2>
       <p>${last ? "Rome's last great invasion is broken. The campaign is won!" : `The ${E.name} is driven back. ${survivors} of your troops still stand.`}</p>
+      <p style="color:#4a2a72">New lands: ${CONQUESTS[run.stageIdx]}.</p>
       <div class="gold"><span class="coin"></span>+${reward} gold</div>
       <button class="btn" style="--c: var(--blue)" id="spoilsBtn">CLAIM SPOILS</button>`;
     $("spoilsBtn").onclick = () => { $("result").hidden = true; startDraft(false); };
