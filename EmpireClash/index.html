@@ -120,6 +120,16 @@ canvas { image-rendering: crisp-edges; image-rendering: pixelated; }
 .march { position: sticky; bottom: -16px; margin: auto 0 -16px; padding: 8px 0 16px; background: linear-gradient(transparent, var(--parchment) 30%); }
 .march .btn { width: 100%; font-size: 24px; }
 
+/* Empire picker */
+.empire-card { display: flex; flex-direction: column; gap: 6px; text-align: left; background: #fbf3dc; border: 3px solid var(--ink); padding: 10px 12px; box-shadow: 0 4px 0 var(--ink); animation: deal 0.35s cubic-bezier(.2,1.3,.4,1) both; }
+.empire-card:active { transform: translateY(3px); }
+.empire-card .top { display: flex; gap: 10px; align-items: center; }
+.empire-card h3 { font-size: 21px; }
+.empire-card .years { font: 700 12px/1.2 var(--body); color: var(--muted); }
+.empire-card .perk { font: 700 14px/1.3 var(--body); color: #3f8f27; }
+.lineup { display: flex; gap: 0; justify-content: space-between; background: #7ea456; border: 2px solid var(--ink); padding: 2px 4px; }
+.lineup canvas { width: 52px; height: 52px; }
+
 /* Battle plan board */
 .plan { display: flex; flex-direction: column; gap: 8px; }
 .plan-tools { display: flex; gap: 6px; }
@@ -141,7 +151,8 @@ canvas { image-rendering: crisp-edges; image-rendering: pixelated; }
 .tug { position: relative; height: 16px; border: 2px solid var(--ink); border-radius: 0; overflow: hidden; background: var(--ec, var(--red)); }
 .tug i { position: absolute; inset: 0 auto 0 0; width: 50%; background: var(--blue); transition: width 0.25s; border-right: 2px solid var(--ink); }
 .hud .counts { display: flex; justify-content: space-between; font: 800 13px/1 var(--body); font-variant-numeric: tabular-nums; }
-#field { flex: 1; width: 100%; display: block; touch-action: none; }
+#field { flex: 1; width: 100%; display: block; touch-action: none; cursor: grab; }
+#minimap { position: absolute; right: max(10px, env(safe-area-inset-right, 0px)); bottom: calc(10px + env(safe-area-inset-bottom, 0px)); width: 64px; border: 2px solid var(--ink); box-shadow: 0 3px 0 var(--ink); pointer-events: none; }
 .speed { min-width: 52px; }
 
 /* Result overlay */
@@ -165,6 +176,15 @@ canvas { image-rendering: crisp-edges; image-rendering: pixelated; }
       <button class="btn ghost" id="confirmNew" hidden>Tap again to abandon your current campaign</button>
     </div>
     <div class="record" id="record"></div>
+  </section>
+
+  <!-- EMPIRE PICKER -->
+  <section class="screen" id="empire" hidden>
+    <header style="text-align:center; display:flex; flex-direction:column; gap:6px; padding-top:10px">
+      <div class="eyebrow">New campaign</div>
+      <h2 style="font-size:32px">Choose your empire</h2>
+    </header>
+    <div class="cards" id="empireList"></div>
   </section>
 
   <!-- DRAFT -->
@@ -215,7 +235,8 @@ canvas { image-rendering: crisp-edges; image-rendering: pixelated; }
       <div class="tug" id="tug"><i id="tugFill"></i></div>
       <div class="counts"><span id="hudMine">You: 0</span><span id="hudTheirs">Them: 0</span></div>
     </div>
-    <canvas id="field"></canvas>
+    <canvas id="field" aria-label="Battlefield. Drag to look around."></canvas>
+    <canvas id="minimap" hidden></canvas>
   </section>
 
   <!-- RESULT -->
@@ -240,7 +261,7 @@ const UNITS = {
   equites:     { name: "Equites", role: "cav", hp: 115, atk: 16, cd: 1.0, speed: 85, weapon: "spear", mount: "horse" },
   ballista:    { name: "Ballista", role: "siege", hp: 80, atk: 34, cd: 2.6, range: 340, splash: 22, speed: 22, mount: "siege", siege: "ballista", proj: "bolt" },
   // Mongol Empire
-  horsearcher: { name: "Horse Archer", role: "cav", hp: 85, atk: 9, cd: 1.1, range: 210, speed: 80, weapon: "bow", mount: "horse", proj: "arrow" },
+  horsearcher: { name: "Horse Archer", role: "cav", hp: 85, atk: 9, cd: 1.1, range: 210, speed: 80, weapon: "bow", mount: "horse", proj: "arrow", kite: true },
   lancer:      { name: "Lancer", role: "cav", hp: 135, atk: 18, cd: 1.1, speed: 88, weapon: "lance", mount: "horse" },
   mangonel:    { name: "Mangonel", role: "siege", hp: 90, atk: 22, cd: 3.2, range: 370, splash: 50, speed: 18, mount: "siege", siege: "catapult", proj: "rock" },
   // New Kingdom Egypt
@@ -254,6 +275,7 @@ const UNITS = {
   // Aztec Empire
   jaguar:      { name: "Jaguar Warrior", role: "inf", hp: 100, atk: 15, cd: 0.95, speed: 52, weapon: "club", shield: "round", look: "jaguar" },
   eagle:       { name: "Eagle Warrior", role: "inf", hp: 80, atk: 12, cd: 0.8, speed: 72, weapon: "club", shield: "round", look: "eagle", bonus: { ranged: 1.5, siege: 1.5 } },
+  shorn:       { name: "Shorn One", role: "inf", hp: 220, atk: 22, cd: 1.1, speed: 44, weapon: "club", shield: "round" },
   atlatl:      { name: "Atlatl Thrower", role: "ranged", hp: 60, atk: 14, cd: 1.4, range: 210, speed: 42, weapon: "javelin", proj: "javelin" },
 };
 // Counters: spears stop horses and elephants; riders run down archers and siege crews.
@@ -278,7 +300,38 @@ const EMPIRES = {
             blurb: "Jaguar and Eagle warriors armed with obsidian-edged clubs, and atlatl dart throwers.",
             troops: { jaguar: 4, eagle: 3, atlatl: 3 } },
 };
+// Your army has five slots. Which troop fills each slot depends on the empire you play.
 const PLAYER_UNITS = ["sword", "spear", "archer", "knight", "catapult"];
+const SLOT_COST = { sword: 15, spear: 15, archer: 18, knight: 30, catapult: 45 };
+const FACTIONS = {
+  banner: { E: PLAYER, name: "The Kingdom", short: "Kingdom", years: "Your own banner", perk: "+50 gold to start",
+            units: { sword: "sword", spear: "spear", archer: "archer", knight: "knight", catapult: "catapult" }, names: {},
+            apply: (r) => { r.gold += 50; } },
+  rome:   { empire: "rome", perk: "Infantry +15% health",
+            units: { sword: "legionary", spear: "spear", archer: "archer", knight: "equites", catapult: "ballista" },
+            names: { spear: "Triarius", archer: "Sagittarius" }, apply: (r) => mod(r, "sword", "hp", 0.15) },
+  mongol: { empire: "mongol", perk: "Horse archers and lancers attack 15% faster",
+            units: { sword: "sword", spear: "spear", archer: "horsearcher", knight: "lancer", catapult: "mangonel" },
+            names: { sword: "Mongol Raider", spear: "Mongol Spearman" }, apply: (r) => { mod(r, "archer", "rate", 0.15); mod(r, "knight", "rate", 0.15); } },
+  egypt:  { empire: "egypt", perk: "Archers +40 range",
+            units: { sword: "khopesh", spear: "spear", archer: "nubian", knight: "chariot", catapult: "catapult" },
+            names: { spear: "Egyptian Spearman" }, apply: (r) => mod(r, "archer", "range", 40) },
+  persia: { empire: "persia", perk: "+20 gold after every victory",
+            units: { sword: "sword", spear: "immortal", archer: "archer", knight: "cataphract", catapult: "elephant" },
+            names: { sword: "Persian Swordsman", archer: "Persian Archer" }, apply: (r) => { r.tax += 20; } },
+  aztec:  { empire: "aztec", perk: "Infantry +15% attack",
+            units: { sword: "jaguar", spear: "spear", archer: "atlatl", knight: "eagle", catapult: "shorn" },
+            names: { spear: "Aztec Spearman" }, apply: (r) => mod(r, "sword", "atk", 0.15) },
+};
+for (const F of Object.values(FACTIONS)) if (F.empire) {
+  const E = EMPIRES[F.empire]; Object.assign(F, { E, name: E.name, short: E.short, years: E.years });
+}
+const PLURAL = { Triarius: "Triarii", Sagittarius: "Sagittarii", Equites: "Equites", Ballista: "Ballistae" };
+const factionOf = (r) => FACTIONS[(r && r.faction) || "banner"];
+const unitOf = (r, slot) => factionOf(r).units[slot];
+const slotName = (r, slot) => factionOf(r).names[slot] || UNITS[unitOf(r, slot)].name;
+const plural = (name) => PLURAL[name] || name.split(" ").map((w, i, a) => (i === a.length - 1 ? PLURAL[w] || w + "s" : w)).join(" ");
+const nm = (slot, count = 2) => (count === 1 ? slotName(run, slot) : plural(slotName(run, slot)));
 
 // Formation zones on your half of the field (fractions of the field; y grows toward your side).
 // The enemy uses the same zones mirrored onto the top half.
@@ -289,23 +342,22 @@ const ZONES = {
   rear:   { name: "Rear",        color: "#56ccf2", x0: 0.15, x1: 0.85, y0: 0.85, y1: 0.98 },
 };
 const ZONE_ORDER = ["left", "center", "right", "rear"];
-const DEFAULT_ZONE = { sword: "center", spear: "center", archer: "rear", knight: "right", catapult: "rear" };
 const MAX_ROUTE_STEPS = 3;
 
 // Cards: pick one of three after every victory. `n(level)` scales unit cards as battles go on.
 const n = (base) => (lvl) => base + Math.floor(lvl / 4);
 const CARDS = [
-  { id: "swords", kind: "Troops", rarity: "common", unit: "sword", title: "Sword Company", desc: (l) => `+${n(3)(l)} Swordsmen`, apply: (r, l) => addUnits(r, "sword", n(3)(l)) },
-  { id: "spears", kind: "Troops", rarity: "common", unit: "spear", title: "Pike Wall", desc: (l) => `+${n(3)(l)} Spearmen. Double damage against riders and elephants.`, apply: (r, l) => addUnits(r, "spear", n(3)(l)) },
-  { id: "archers", kind: "Troops", rarity: "common", unit: "archer", title: "Archer Corps", desc: (l) => `+${n(3)(l)} Archers`, apply: (r, l) => addUnits(r, "archer", n(3)(l)) },
-  { id: "knights", kind: "Troops", rarity: "rare", unit: "knight", title: "Knights' Charge", desc: (l) => `+${n(2)(l)} Knights. Fast riders who crush archers and siege.`, apply: (r, l) => addUnits(r, "knight", n(2)(l)) },
-  { id: "catapult", kind: "Troops", rarity: "rare", unit: "catapult", title: "Siege Engineers", desc: (l) => `+${n(1)(l)} Catapult. Long range, hits groups.`, apply: (r, l) => addUnits(r, "catapult", n(1)(l)) },
-  { id: "veterans", kind: "Troops", rarity: "rare", unit: "sword", title: "Veteran Company", desc: (l) => `+${n(2)(l)} Swordsmen and +${n(2)(l)} Archers`, apply: (r, l) => { addUnits(r, "sword", n(2)(l)); addUnits(r, "archer", n(2)(l)); } },
-  { id: "blades", kind: "Upgrade", rarity: "common", unit: "sword", title: "Tempered Blades", desc: () => "Swordsmen +30% attack", apply: (r) => mod(r, "sword", "atk", 0.3) },
-  { id: "phalanx", kind: "Upgrade", rarity: "common", unit: "spear", title: "Phalanx Drill", desc: () => "Spearmen +35% health", apply: (r) => mod(r, "spear", "hp", 0.35) },
-  { id: "longbow", kind: "Upgrade", rarity: "rare", unit: "archer", title: "Longbows", desc: () => "Archers +60 range and +20% attack", apply: (r) => { mod(r, "archer", "range", 60); mod(r, "archer", "atk", 0.2); } },
-  { id: "barding", kind: "Upgrade", rarity: "rare", unit: "knight", title: "Barded Horses", desc: () => "Knights +35% health", apply: (r) => mod(r, "knight", "hp", 0.35) },
-  { id: "torsion", kind: "Upgrade", rarity: "rare", unit: "catapult", title: "Torsion Springs", desc: () => "Catapults +40% attack, fire 15% faster", apply: (r) => { mod(r, "catapult", "atk", 0.4); mod(r, "catapult", "rate", 0.15); } },
+  { id: "swords", kind: "Troops", rarity: "common", unit: "sword", title: "Infantry Company", desc: (l) => `+${n(3)(l)} ${nm("sword")}`, apply: (r, l) => addUnits(r, "sword", n(3)(l)) },
+  { id: "spears", kind: "Troops", rarity: "common", unit: "spear", title: "Pike Wall", desc: (l) => `+${n(3)(l)} ${nm("spear")}. Double damage against riders and elephants.`, apply: (r, l) => addUnits(r, "spear", n(3)(l)) },
+  { id: "archers", kind: "Troops", rarity: "common", unit: "archer", title: "Missile Corps", desc: (l) => `+${n(3)(l)} ${nm("archer")}`, apply: (r, l) => addUnits(r, "archer", n(3)(l)) },
+  { id: "knights", kind: "Troops", rarity: "rare", unit: "knight", title: "Cavalry Charge", desc: (l) => `+${n(2)(l)} ${nm("knight")}. Fast attackers who crush archers and siege.`, apply: (r, l) => addUnits(r, "knight", n(2)(l)) },
+  { id: "catapult", kind: "Troops", rarity: "rare", unit: "catapult", title: "Heavy Support", desc: (l) => `+${n(1)(l)} ${nm("catapult", n(1)(l))}. Your heaviest hitter.`, apply: (r, l) => addUnits(r, "catapult", n(1)(l)) },
+  { id: "veterans", kind: "Troops", rarity: "rare", unit: "sword", title: "Veteran Company", desc: (l) => `+${n(2)(l)} ${nm("sword")} and +${n(2)(l)} ${nm("archer")}`, apply: (r, l) => { addUnits(r, "sword", n(2)(l)); addUnits(r, "archer", n(2)(l)); } },
+  { id: "blades", kind: "Upgrade", rarity: "common", unit: "sword", title: "Tempered Blades", desc: () => `${nm("sword")} +30% attack`, apply: (r) => mod(r, "sword", "atk", 0.3) },
+  { id: "phalanx", kind: "Upgrade", rarity: "common", unit: "spear", title: "Phalanx Drill", desc: () => `${nm("spear")} +35% health`, apply: (r) => mod(r, "spear", "hp", 0.35) },
+  { id: "longbow", kind: "Upgrade", rarity: "rare", unit: "archer", title: "Sharpshooters", desc: () => `${nm("archer")} +60 range and +20% attack`, apply: (r) => { mod(r, "archer", "range", 60); mod(r, "archer", "atk", 0.2); } },
+  { id: "barding", kind: "Upgrade", rarity: "rare", unit: "knight", title: "Heavy Armor", desc: () => `${nm("knight")} +35% health`, apply: (r) => mod(r, "knight", "hp", 0.35) },
+  { id: "torsion", kind: "Upgrade", rarity: "rare", unit: "catapult", title: "Veteran Crews", desc: () => `${nm("catapult")} +40% attack, attack 15% faster`, apply: (r) => { mod(r, "catapult", "atk", 0.4); mod(r, "catapult", "rate", 0.15); } },
   { id: "drums", kind: "Upgrade", rarity: "epic", icon: "banner", title: "War Drums", desc: () => "All troops attack 15% faster", apply: (r) => mod(r, "all", "rate", 0.15) },
   { id: "royal", kind: "Upgrade", rarity: "epic", icon: "banner", title: "Royal Standard", desc: () => "All troops +15% health and +10% attack", apply: (r) => { mod(r, "all", "hp", 0.15); mod(r, "all", "atk", 0.1); } },
   { id: "surgeons", kind: "Upgrade", rarity: "epic", icon: "banner", title: "Field Surgeons", desc: () => "All troops heal 3 health per second in battle", apply: (r) => { r.regen += 3; } },
@@ -321,16 +373,25 @@ let store = { best: 0, run: null };
 try { Object.assign(store, JSON.parse(localStorage.getItem(SAVE_KEY) || "{}")); } catch (e) {}
 function persist() { try { localStorage.setItem(SAVE_KEY, JSON.stringify(store)); } catch (e) {} }
 
-function newRun() {
+function newRun(faction = "banner") {
   const mods = {};
   for (const k of [...PLAYER_UNITS, "all"]) mods[k] = { hp: 0, atk: 0, rate: 0, range: 0 };
-  return { level: 1, gold: 40, army: { sword: 4, spear: 2, archer: 2 }, recruited: {}, mods, tax: 0, discount: 0, regen: 0,
-           picked: [], enemy: null, lastEmpire: null, stage: "draft", plan: null };
+  const r = { faction, level: 1, gold: 40, army: { sword: 4, spear: 2, archer: 2 }, recruited: {}, mods, tax: 0, discount: 0, regen: 0,
+              picked: [], enemy: null, lastEmpire: null, stage: "draft", plan: null };
+  FACTIONS[faction].apply(r);
+  return r;
+}
+// Default starting zone: riders on the right flank, ranged and siege at the rear, the rest in the center.
+function defaultZone(r, slot) {
+  if (slot === "knight") return "right";
+  const U = UNITS[unitOf(r, slot)];
+  return U.range || U.role === "siege" ? "rear" : "center";
 }
 // Battle plan: which zone each troop type starts in, and each zone's route (list of points 0..1).
 function ensurePlan(r) {
   if (!r.plan) r.plan = { zone: {}, paths: { left: [], center: [], right: [], rear: [] }, history: [] };
-  for (const k of PLAYER_UNITS) if (!r.plan.zone[k]) r.plan.zone[k] = DEFAULT_ZONE[k];
+  if (!r.faction) r.faction = "banner";
+  for (const k of PLAYER_UNITS) if (!r.plan.zone[k]) r.plan.zone[k] = defaultZone(r, k);
   for (const z of ZONE_ORDER) if (!r.plan.paths[z]) r.plan.paths[z] = [];
   if (!r.plan.history) r.plan.history = [];
 }
@@ -345,15 +406,21 @@ const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 const pick = (arr) => arr[Math.floor(Math.random() * arr.length)];
 
 function playerStats(r, key) {
-  const b = UNITS[key], m = r.mods[key], a = r.mods.all;
+  const b = UNITS[unitOf(r, key)], m = r.mods[key], a = r.mods.all;
   return { ...b, hp: Math.round(b.hp * (1 + m.hp + a.hp)), atk: +(b.atk * (1 + m.atk + a.atk)).toFixed(1),
            cd: b.cd / (1 + m.rate + a.rate), range: (b.range || 0) + m.range, regen: r.regen };
 }
 function recruitCost(r, key) {
-  return Math.round(UNITS[key].cost * (1 - r.discount) * (1 + 0.12 * (r.recruited[key] || 0)));
+  return Math.round(SLOT_COST[key] * (1 - r.discount) * (1 + 0.12 * (r.recruited[key] || 0)));
 }
-function makeEnemy(level, last) {
-  const keys = Object.keys(EMPIRES).filter((k) => k !== last);
+// The battlefield grows with the number of troops on it (up to twice the screen in each direction).
+function worldSize(r, vw, vh) {
+  const total = armySize(r) + (r.enemy ? Object.values(r.enemy.army).reduce((a, b) => a + b, 0) : 0);
+  const f = clamp(Math.sqrt(total / 36), 1, 2);
+  return { W: Math.round(vw * f), H: Math.round(vh * f), f };
+}
+function makeEnemy(level, last, exclude) {
+  const keys = Object.keys(EMPIRES).filter((k) => k !== last && k !== exclude);
   const emp = pick(keys), E = EMPIRES[emp];
   // Armies grow in size early on, then (once capped) in strength.
   const count = Math.min(ENEMY_CAP, 4 + Math.floor(level * 1.5));
@@ -585,16 +652,16 @@ function routePoints(plan, z, w, h) {
   const Z = ZONES[z];
   return [{ x: ((Z.x0 + Z.x1) / 2) * w, y: ((Z.y0 + Z.y1) / 2) * h }, ...plan.paths[z].map((p) => ({ x: p.x * w, y: p.y * h }))];
 }
-function drawIconGrid(canvas, rows) {
+function drawIconGrid(canvas, rows, E = PLAYER) {
   const r = canvas.getBoundingClientRect(), w = gridW(rows), h = rows.length;
   const s = Math.max(1, Math.floor(Math.min(r.width / (w + 2), r.height / (h + 2))));
   canvas.width = Math.round(r.width / s); canvas.height = Math.round(r.height / s);
   const g = canvas.getContext("2d");
-  paint(g, rows, Math.floor((canvas.width - w) / 2), Math.floor((canvas.height - h) / 2), palette(PLAYER));
+  paint(g, rows, Math.floor((canvas.width - w) / 2), Math.floor((canvas.height - h) / 2), palette(E));
 }
 // Static troop portrait for cards and the camp, at a whole-number pixel scale.
 function paintIcon(canvas, what, E) {
-  if (ICON_GRIDS[what]) return drawIconGrid(canvas, ICON_GRIDS[what]);
+  if (ICON_GRIDS[what]) return drawIconGrid(canvas, ICON_GRIDS[what], E);
   const spr = getSprite(what, E), r = canvas.getBoundingClientRect();
   const fullW = spr.w + 4, fullH = spr.h + 2;
   const s = Math.max(1, Math.floor(Math.min(r.width / fullW, r.height / fullH)));
@@ -695,7 +762,10 @@ class Battle {
     const en = run.enemy, E = EMPIRES[en.emp];
     this.E = E;
     const mine = [], theirs = [];
-    for (const [k, c] of Object.entries(run.army)) for (let i = 0; i < c; i++) mine.push(this.make(0, k, PLAYER, playerStats(run, k)));
+    const F = factionOf(run); this.PE = F.E;
+    for (const [slot, c] of Object.entries(run.army)) for (let i = 0; i < c; i++) {
+      const u = this.make(0, unitOf(run, slot), F.E, playerStats(run, slot)); u.slot = slot; mine.push(u);
+    }
     for (const [k, c] of Object.entries(en.army)) for (let i = 0; i < c; i++) {
       const b = UNITS[k];
       theirs.push(this.make(1, k, E, { ...b, hp: Math.round(b.hp * en.scale), atk: b.atk * en.scale, range: b.range || 0, regen: 0 }));
@@ -732,7 +802,7 @@ class Battle {
   // Your troops start in the zones you chose and follow that zone's route.
   formPlayer(list) {
     const groups = { left: [], center: [], right: [], rear: [] };
-    for (const u of list) groups[this.plan.zone[u.key] || "center"].push(u);
+    for (const u of list) groups[this.plan.zone[u.slot] || "center"].push(u);
     for (const z of ZONE_ORDER) {
       const rect = ZONES[z];
       this.fillZone(groups[z], rect, 0);
@@ -756,6 +826,15 @@ class Battle {
       else groups.center.push(u);
     }
     for (const z of ZONE_ORDER) this.fillZone(groups[z], this.zoneRect(z, 1), 1);
+  }
+  // Where the camera should look: midway between the two armies.
+  focus() {
+    const m = [0, 1].map((side) => {
+      const us = this.units.filter((u) => u.side === side && !u.dead);
+      return us.length ? { x: us.reduce((s, u) => s + u.x, 0) / us.length, y: us.reduce((s, u) => s + u.y, 0) / us.length } : null;
+    });
+    if (m[0] && m[1]) return { x: (m[0].x + m[1].x) / 2, y: (m[0].y + m[1].y) / 2 };
+    return m[0] || m[1] || { x: this.W / 2, y: this.H / 2 };
   }
   sideHp(side) { return this.units.reduce((s, u) => s + (u.side === side && !u.dead ? u.hp : 0), 0); }
   alive(side) { return this.units.filter((u) => u.side === side && !u.dead).length; }
@@ -802,6 +881,19 @@ class Battle {
       const tg = u.target; if (!tg) continue;
       const dx = tg.x - u.x, dy = tg.y - u.y, dist = Math.hypot(dx, dy) || 1;
       const reach = (u.range || 0) + u.rad + tg.rad + 2;
+      // Horse archers edge away (slowly) from melee troops that reach them, still shooting.
+      if (u.U.kite) {
+        let threat = null, td = Infinity;
+        for (const v of live) {
+          if (v.side === u.side || v.dead || v.range > 0) continue;
+          const d = Math.hypot(v.x - u.x, v.y - u.y) - v.rad - u.rad;
+          if (d < td) { td = d; threat = v; }
+        }
+        if (threat && td < 40) {
+          const ax = u.x - threat.x, ay = u.y - threat.y, ad = Math.hypot(ax, ay) || 1, step = u.speed * 0.25 * dt;
+          u.x += (ax / ad) * step; u.y += (ay / ad) * step; FX.move(u, step);
+        }
+      }
       // Following a battle-plan route: keep marching unless an enemy is close.
       if (u.path && u.step < u.path.length && dist > reach + 40) {
         const wp = u.path[u.step], wx = wp.x - u.x, wy = wp.y - u.y, wd = Math.hypot(wx, wy);
@@ -907,7 +999,7 @@ class Battle {
       if (v > 0.93) { g.fillRect(x - 1, y - 1, 1, 1); g.fillRect(x + 1, y - 1, 1, 1); }
     }
     g.fillStyle = shade(this.E.primary, 0.35); g.fillRect(0, 0, w, 4);
-    g.fillStyle = shade(PLAYER.primary, 0.35); g.fillRect(0, h - 4, w, 4);
+    g.fillStyle = shade(this.PE.primary, 0.35); g.fillRect(0, h - 4, w, 4);
     return c;
   }
   // Everything below draws in art pixels (1 unit = 1 art pixel).
@@ -973,7 +1065,7 @@ class Battle {
 
 // =====================================================================  UI
 const $ = (id) => document.getElementById(id);
-const SCREENS = ["title", "draft", "camp", "battle", "result"];
+const SCREENS = ["title", "empire", "draft", "camp", "battle", "result"];
 function show(...ids) { for (const s of SCREENS) $(s).hidden = !ids.includes(s); }
 let run = store.run;
 let battle = null, speed = 1, raf = 0;
@@ -1020,6 +1112,21 @@ function titleLoop(now) {
   titleRaf = requestAnimationFrame(titleLoop);
 }
 
+function chooseEmpire() {
+  show("empire");
+  $("empireList").innerHTML = Object.entries(FACTIONS).map(([key, F], i) => `
+    <button class="empire-card" data-faction="${key}" style="animation-delay:${i * 0.05}s">
+      <div class="top"><div class="banner-flag" style="--ec:${F.E.primary}"></div>
+        <div><h3>${F.name}</h3><div class="years">${F.years}</div></div></div>
+      <div class="lineup">${PLAYER_UNITS.map((slot) => `<canvas data-fu="${F.units[slot]}" data-fk="${key}" title="${F.names[slot] || UNITS[F.units[slot]].name}"></canvas>`).join("")}</div>
+      <div class="perk">Perk: ${F.perk}</div>
+    </button>`).join("");
+  requestAnimationFrame(() => document.querySelectorAll("[data-fu]").forEach((cv) => paintIcon(cv, cv.dataset.fu, FACTIONS[cv.dataset.fk].E)));
+}
+$("empireList").addEventListener("click", (e) => {
+  const b = e.target.closest("[data-faction]"); if (!b) return;
+  run = newRun(b.dataset.faction); store.run = run; persist(); startDraft(true);
+});
 function startDraft(first) {
   run.stage = "draft";
   if (!run.offer) run.offer = drawCards(run);
@@ -1036,7 +1143,8 @@ function startDraft(first) {
       <div><div class="kind">${c.kind}</div><h3>${c.title}</h3><p>${c.desc(lvl)}</p></div>
     </button>`;
   }).join("");
-  requestAnimationFrame(() => document.querySelectorAll("#cards canvas").forEach((cv) => paintIcon(cv, cv.dataset.icon, PLAYER, 1.2)));
+  const F = factionOf(run);
+  requestAnimationFrame(() => document.querySelectorAll("#cards canvas").forEach((cv) => paintIcon(cv, ICON_GRIDS[cv.dataset.icon] ? cv.dataset.icon : unitOf(run, cv.dataset.icon), F.E)));
 }
 $("cards").addEventListener("click", (e) => {
   const b = e.target.closest("[data-card]"); if (!b) return;
@@ -1048,8 +1156,9 @@ $("cards").addEventListener("click", (e) => {
 });
 
 function camp() {
-  if (!run.enemy) { run.enemy = makeEnemy(run.level, run.lastEmpire); }
   ensurePlan(run);
+  if (!run.enemy) { run.enemy = makeEnemy(run.level, run.lastEmpire, run.faction); }
+  const F = factionOf(run);
   run.stage = "camp"; store.run = run; persist();
   show("camp");
   $("campLevel").textContent = `Battle ${run.level}`;
@@ -1071,16 +1180,16 @@ function camp() {
   $("roster").innerHTML = owned.map((k) => {
     const s = playerStats(run, k), cost = recruitCost(run, k);
     return `<div class="unit-row"><canvas data-mine="${k}"></canvas>
-      <div style="min-width:0"><div class="name">${UNITS[k].name}</div>
-        <div class="stats">${ROLE_LABEL[UNITS[k].role]} · ${s.hp} HP · ${Math.round(s.atk / s.cd)} dmg/s${s.range ? ` · range ${s.range}` : ""}</div>
-        <button class="zone-pill" style="--zc: ${ZONES[run.plan.zone[k]].color}" data-zone="${k}" aria-label="${UNITS[k].name} zone: ${ZONES[run.plan.zone[k]].name}. Tap to change.">${ZONES[run.plan.zone[k]].name} ▸</button></div>
+      <div style="min-width:0"><div class="name">${slotName(run, k)}</div>
+        <div class="stats">${ROLE_LABEL[UNITS[unitOf(run, k)].role]} · ${s.hp} HP · ${Math.round(s.atk / s.cd)} dmg/s${s.range ? ` · range ${s.range}` : ""}</div>
+        <button class="zone-pill" style="--zc: ${ZONES[run.plan.zone[k]].color}" data-zone="${k}" aria-label="${slotName(run, k)} zone: ${ZONES[run.plan.zone[k]].name}. Tap to change.">${ZONES[run.plan.zone[k]].name} ▸</button></div>
       <div class="right"><span class="count">${run.army[k]}</span>
         <button class="btn small" style="--c: var(--green)" data-recruit="${k}" ${run.gold < cost || size >= ARMY_CAP ? "disabled" : ""}>+1 <span class="coin"></span>${cost}</button></div>
     </div>`;
   }).join("");
   const boosts = [];
   for (const [k, m] of Object.entries(run.mods)) {
-    const who = k === "all" ? "All" : UNITS[k].name + "s";
+    const who = k === "all" ? "All" : plural(slotName(run, k));
     if (m.hp) boosts.push(`${who} +${Math.round(m.hp * 100)}% HP`);
     if (m.atk) boosts.push(`${who} +${Math.round(m.atk * 100)}% attack`);
     if (m.rate) boosts.push(`${who} +${Math.round(m.rate * 100)}% speed`);
@@ -1093,7 +1202,7 @@ function camp() {
   $("boosts").innerHTML = boosts.map((b) => `<span class="chip">${b}</span>`).join("");
   requestAnimationFrame(() => {
     document.querySelectorAll("[data-u]").forEach((cv) => paintIcon(cv, cv.dataset.u, E));
-    document.querySelectorAll("[data-mine]").forEach((cv) => paintIcon(cv, cv.dataset.mine, PLAYER));
+    document.querySelectorAll("[data-mine]").forEach((cv) => paintIcon(cv, unitOf(run, cv.dataset.mine), F.E));
     renderPlanBase();
   });
 }
@@ -1101,18 +1210,23 @@ function camp() {
 // ---------------- Battle plan board: a preview of both armies; swipe from a zone to add a route step
 let planBase = null, planDrag = null;
 function renderPlanBase() {
-  const c = $("planBoard"), w = c.clientWidth || 340, h = Math.round(w * 1.15);
+  const c = $("planBoard"), app = document.querySelector(".app");
+  const ws = worldSize(run, app.clientWidth, Math.max(320, app.clientHeight - 84));
+  const w = c.clientWidth || 340, h = Math.round((w * ws.H) / ws.W);
   c.style.height = h + "px";
   const bw = Math.round(w / PX), bh = Math.round(h / PX);
   c.width = bw; c.height = bh;
-  const preview = new Battle(run, w, h);
+  // Lay out the real battle (at its full size), then shrink it onto the board.
+  const preview = new Battle(run, ws.W, ws.H);
   preview.t = 99;                                    // the board draws routes itself
+  const fw = Math.round(ws.W / PX), fh = Math.round(ws.H / PX), full = makeCanvas(fw, fh), fgc = full.getContext("2d");
+  fgc.drawImage(preview.buildGround(fw, fh), 0, 0);
+  preview.draw(fgc);
   const base = makeCanvas(bw, bh), g = base.getContext("2d");
   g.imageSmoothingEnabled = false;
-  g.drawImage(preview.buildGround(bw, bh), 0, 0);
+  g.drawImage(full, 0, 0, bw, bh);
   g.fillStyle = "rgba(216, 56, 62, 0.12)"; g.fillRect(0, 0, bw, Math.round(bh * 0.44));
   for (const z of ZONE_ORDER) { const Z = ZONES[z]; dashedRect(g, Z.x0 * bw, Z.y0 * bh, (Z.x1 - Z.x0) * bw, (Z.y1 - Z.y0) * bh, Z.color); }
-  preview.draw(g);
   planBase = { img: base, w: bw, h: bh };
   $("boardLabels").innerHTML = ZONE_ORDER.map((z) => `<span class="zone-label" style="left:${ZONES[z].x0 * 100 + 1}%;top:${ZONES[z].y1 * 100 - 5}%;color:${ZONES[z].color}">${ZONES[z].name}</span>`).join("")
     + `<span class="zone-label" style="left:2%;top:2%;color:#ffd0c8">Enemy lines</span>`;
@@ -1187,27 +1301,60 @@ $("roster").addEventListener("click", (e) => {
 $("marchBtn").onclick = () => startBattle();
 
 const field = $("field"), fg = field.getContext("2d");
+let cam = null, camDrag = null;
+// Drag the battlefield to look around; the camera resumes following the fight after a moment.
+field.addEventListener("pointerdown", (e) => { if (!cam) return; camDrag = { x: e.clientX, y: e.clientY }; try { field.setPointerCapture(e.pointerId); } catch (err) {} });
+field.addEventListener("pointermove", (e) => {
+  if (!camDrag || !cam) return;
+  cam.x -= e.clientX - camDrag.x; cam.y -= e.clientY - camDrag.y; cam.hold = 2.5;
+  camDrag = { x: e.clientX, y: e.clientY };
+});
+field.addEventListener("pointerup", () => { camDrag = null; });
+field.addEventListener("pointercancel", () => { camDrag = null; });
+function drawMinimap(view) {
+  const mm = $("minimap"), mw = 64, mh = Math.round((mw * battle.H) / battle.W);
+  if (mm.width !== mw || mm.height !== mh) { mm.width = mw; mm.height = mh; mm.style.height = mh + "px"; }
+  const g = mm.getContext("2d"), sx = mw / battle.W, sy = mh / battle.H;
+  g.fillStyle = "#7ea456"; g.fillRect(0, 0, mw, mh);
+  for (const u of battle.units) {
+    if (u.dead) continue;
+    g.fillStyle = u.side === 0 ? "#3f7be0" : "#d8383e";
+    g.fillRect(Math.round(u.x * sx) - 1, Math.round(u.y * sy) - 1, 2, 2);
+  }
+  g.strokeStyle = "#fff8e6"; g.lineWidth = 1;
+  g.strokeRect(Math.round(cam.x * sx) + 0.5, Math.round(cam.y * sy) + 0.5, Math.round(view.w * sx) - 1, Math.round(view.h * sy) - 1);
+}
 function startBattle() {
   run.stage = "battle"; persist();
   show("battle");
   const E = EMPIRES[run.enemy.emp];
-  $("hudTitle").textContent = `Your Banner vs ${E.short}`;
+  $("hudTitle").textContent = `${factionOf(run).short} vs ${E.short}`;
   $("tug").style.setProperty("--ec", E.primary);
-  const r = field.getBoundingClientRect();
+  const r = field.getBoundingClientRect(), view = { w: r.width, h: r.height };
   const aw = Math.round(r.width / PX), ah = Math.round(r.height / PX);
   field.width = aw; field.height = ah;
-  battle = new Battle(run, r.width, r.height);
-  const ground = battle.buildGround(aw, ah);
+  const ws = worldSize(run, view.w, view.h);
+  battle = new Battle(run, ws.W, ws.H);
+  const ground = battle.buildGround(Math.round(ws.W / PX), Math.round(ws.H / PX));
+  const f0 = battle.focus();
+  cam = { x: clamp(f0.x - view.w / 2, 0, ws.W - view.w), y: clamp(f0.y - view.h / 2 + view.h * 0.15, 0, ws.H - view.h), hold: 0 };
+  $("minimap").hidden = ws.f < 1.05;
   let last = performance.now();
   cancelAnimationFrame(raf);
   const loop = (now) => {
     const dt = Math.min(0.05, (now - last) / 1000); last = now;
     for (let i = 0; i < speed; i++) battle.tick(dt);
     const shx = battle.shake ? Math.round(rand(-1, 1) * battle.shake) : 0, shy = battle.shake ? Math.round(rand(-1, 1) * battle.shake) : 0;
-    fg.setTransform(1, 0, 0, 1, shx, shy); fg.imageSmoothingEnabled = false;
-    fg.fillStyle = "#5f8a3c"; fg.fillRect(-4, -4, aw + 8, ah + 8);
+    // camera follows the middle of the fighting unless you've just dragged it
+    if (cam.hold > 0) cam.hold -= dt;
+    else { const fc = battle.focus(), k = Math.min(1, dt * 2); cam.x += (fc.x - view.w / 2 - cam.x) * k; cam.y += (fc.y - view.h / 2 - cam.y) * k; }
+    cam.x = clamp(cam.x, 0, battle.W - view.w); cam.y = clamp(cam.y, 0, battle.H - view.h);
+    fg.setTransform(1, 0, 0, 1, 0, 0); fg.imageSmoothingEnabled = false;
+    fg.fillStyle = "#5f8a3c"; fg.fillRect(0, 0, aw, ah);
+    fg.setTransform(1, 0, 0, 1, -Math.round(cam.x / PX) + shx, -Math.round(cam.y / PX) + shy);
     fg.drawImage(ground, 0, 0);
     battle.draw(fg);
+    if (!$("minimap").hidden) drawMinimap(view);
     const a = battle.alive(0), b = battle.alive(1), ha = battle.sideHp(0), hb = battle.sideHp(1);
     $("hudMine").textContent = `You: ${a}`; $("hudTheirs").textContent = `${E.short}: ${b}`;
     $("tugFill").style.width = (100 * ha / Math.max(1, ha + hb)) + "%";
@@ -1242,25 +1389,25 @@ function finishBattle(won, survivors) {
     $("resultPanel").innerHTML = `
       <div class="eyebrow">Battle ${run.level}</div>
       <h2 style="color: var(--red)">Defeat</h2>
-      <p>Your banner fell to the ${E.name} after ${wins} ${wins === 1 ? "victory" : "victories"}.</p>
+      <p>Your ${factionOf(run).short} army fell to the ${E.name} after ${wins} ${wins === 1 ? "victory" : "victories"}.</p>
       <p style="color: var(--muted)">Best campaign: ${store.best} ${store.best === 1 ? "victory" : "victories"}</p>
       <button class="btn" id="againBtn">NEW CAMPAIGN</button>
       <button class="btn ghost small" id="homeBtn">Title screen</button>`;
-    $("againBtn").onclick = () => { run = newRun(); store.run = run; startDraft(true); };
+    $("againBtn").onclick = () => { $("result").hidden = true; chooseEmpire(); };
     $("homeBtn").onclick = () => title();
   }
 }
 
 $("continueBtn").onclick = () => {
-  run = store.run;
+  run = store.run; ensurePlan(run);
   if (run.stage === "draft") startDraft(run.level === 1 && !run.picked.length);
   else camp();   // a battle in progress restarts from camp
 };
 $("newBtn").onclick = () => {
   if (store.run && $("confirmNew").hidden) { $("confirmNew").hidden = false; return; }
-  run = newRun(); store.run = run; persist(); startDraft(true);
+  chooseEmpire();
 };
-$("confirmNew").onclick = () => { run = newRun(); store.run = run; persist(); startDraft(true); };
+$("confirmNew").onclick = () => chooseEmpire();
 window.addEventListener("resize", () => { if (!$("title").hidden) drawTitleArt(); });
 if (document.fonts && document.fonts.ready) document.fonts.ready.then(() => { if (!$("title").hidden) drawTitleArt(); });
 

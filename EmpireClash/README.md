@@ -9,6 +9,19 @@ browser to play.
 
 ## The loop
 
+0. **Choose your empire:** play as the Kingdom (your own banner) or as any of the five empires.
+   Your army has five slots (infantry, spear, ranged, cavalry and heavy). Your empire decides which
+   troop fills each slot and gives you a small perk. You never fight your own empire.
+
+   | Empire   | Infantry        | Spear             | Ranged         | Cavalry    | Heavy        | Perk                                |
+   |----------|-----------------|-------------------|----------------|------------|--------------|-------------------------------------|
+   | Kingdom  | Swordsman       | Spearman          | Archer         | Knight     | Catapult     | +50 gold to start                   |
+   | Rome     | Legionary       | Triarius          | Sagittarius    | Equites    | Ballista     | Infantry +15% health                |
+   | Mongols  | Mongol Raider   | Mongol Spearman   | Horse Archer   | Lancer     | Mangonel     | Horse archers and lancers 15% faster |
+   | Egypt    | Khopesh Warrior | Egyptian Spearman | Nubian Archer  | Chariot    | Catapult     | Archers +40 range                   |
+   | Persia   | Persian Swordsman | Immortal        | Persian Archer | Cataphract | War Elephant | +20 gold per victory                |
+   | Aztecs   | Jaguar Warrior  | Aztec Spearman    | Atlatl Thrower | Eagle Warrior | Shorn One | Infantry +15% attack                |
+
 1. **Draft:** start a campaign by choosing 1 of 3 cards. After every victory, choose 1 of 3 more.
    * **Troops:** add Swordsmen, Spearmen, Archers, Knights or Catapults.
    * **Upgrades:** health, attack, range, attack speed or healing.
@@ -24,7 +37,9 @@ browser to play.
    * **Enemy formation:** infantry in the center, cavalry split across both flanks, and archers
      and siege at the rear.
 3. **Battle:** armies fight on their own. Your troops start at the bottom and the enemy's at the
-   top. You can speed it up 2× or 3×.
+   top. You can speed it up 2× or 3×. The battlefield grows with the number of troops (up to twice
+   the screen in each direction). The camera follows the fighting, you can drag to look around, and a
+   minimap shows the whole field.
 4. **Win:** you get gold and a card pick, then a new random empire (never the same one twice in a
    row). **Lose:** the campaign is over, and your best run is saved.
 
@@ -38,6 +53,7 @@ browser to play.
   Then it explodes for area damage: full in the middle, half at the edge. Troops can walk out of
   the ring before it lands.
 * War Elephants also hit everyone around their target.
+* Horse Archers back away slowly from melee troops that reach them, and keep shooting as they go.
 
 ## The five empires
 
