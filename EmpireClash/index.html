@@ -855,7 +855,9 @@ class Terrain {
     for (let i = 1; i <= n; i++) { const t = i / n; if (this.blocked(x0 + (x1 - x0) * t, y0 + (y1 - y0) * t)) return false; }
     return true;
   }
-  nearestFree(x, y) {
+  // Nearest open spot. With a "from" point, only spots reachable in a straight line from it count,
+  // so a troop shoved into a wall is never put back on the far side.
+  nearestFree(x, y, fromX, fromY) {
     const c0 = Math.floor(x / NAV_CELL), r0 = Math.floor(y / NAV_CELL);
     if (!this.blockedCell(c0, r0)) return { x, y };
     for (let rad = 1; rad < 30; rad++) {
@@ -863,6 +865,7 @@ class Terrain {
       for (let dr = -rad; dr <= rad; dr++) for (let dc = -rad; dc <= rad; dc++) {
         if (Math.max(Math.abs(dr), Math.abs(dc)) !== rad || this.blockedCell(c0 + dc, r0 + dr)) continue;
         const px = (c0 + dc + 0.5) * NAV_CELL, py = (r0 + dr + 0.5) * NAV_CELL, d = Math.hypot(px - x, py - y);
+        if (fromX !== undefined && !this.blocked(fromX, fromY) && !this.los(fromX, fromY, px, py)) continue;
         if (d < bd) { bd = d; best = { x: px, y: py }; }
       }
       if (best) return best;
@@ -1106,18 +1109,29 @@ const OWNER_COLORS = {
   armenia: ["#b59ac9", "#5e4a78"], arabia: ["#dcc38e", "#9c8250"], north: ["#b8b77a", "#6e6c40"],
   unclaimed: ["#b9ab8c", "#7c6e50"],
 };
-// The campaign starts with Persis (Fars), where Ardashir I rose in AD 224. Each victory adds a region.
-const CONQUESTS = ["Persis", "Mesopotamia, Khuzestan and Media", "Atropatene, Rey and Hyrcania", "Armenia, Kerman and Khorasan",
-                   "Sakastan, the Kushan lands and Oman", "Nisibis and Singara, ceded by Rome"];
+// Provinces of the Sasanian realm, each grown from its historical capital (nearest-capital regions,
+// clipped by coasts and the Roman frontier). The campaign starts with Persis, where Ardashir I rose
+// in AD 224; each victory annexes the provinces next to that battle plus the next ring in the east.
+const PROVINCES = [
+  // [name, lon, lat, victory that brings it in]
+  ["Persis", 52.9, 29.9, 0], ["Persis", 54.6, 28.6, 0],
+  ["Asorestan", 44.6, 33.1, 1], ["Mesene", 47.4, 30.9, 1], ["Khuzestan", 48.7, 31.9, 1], ["Kerman", 57.2, 29.8, 1],
+  ["Adiabene", 43.8, 35.9, 2], ["Media", 48.4, 34.5, 2], ["Spahan", 51.8, 32.8, 2], ["Sakastan", 61.4, 30.8, 2],
+  ["Atropatene", 46.4, 37.7, 3], ["Rey", 51.6, 35.7, 3], ["Kushanshahr", 64.8, 33.6, 3], ["Makran", 61.0, 26.4, 3],
+  ["Hyrcania", 54.6, 37.0, 4], ["Parthia", 58.6, 36.4, 4], ["Merv", 62.0, 37.8, 4], ["Mazun", 57.6, 23.7, 4], ["Hagar", 50.0, 25.4, 4],
+];
+const CONQUESTS = ["Persis", "Asorestan, Mesene, Khuzestan and Kerman", "Adiabene, Media, Spahan and Sakastan",
+                   "Armenia, Atropatene, Rey, Kushanshahr and Makran", "Hyrcania, Parthia, Merv, Mazun and Hagar", "Nisibis and Singara, ceded by Rome"];
+function provinceAt(lon, lat) {
+  let best = null, bd = Infinity;
+  for (const p of PROVINCES) { const d = ((lon - p[1]) * 0.85) ** 2 + (lat - p[2]) ** 2; if (d < bd) { bd = d; best = p; } }
+  return best;
+}
 function conquestStage(lon, lat, owner) {
-  if (owner === "rome") return lon > 40.2 && lat > 35.0 && lat < 38.0 ? 5 : -1;
+  if (owner === "rome") return lon > 40.4 && (Math.hypot(lon - 41.2, lat - 37.1) < 1.15 || Math.hypot(lon - 42.0, lat - 36.2) < 1.15) ? 5 : -1;
   if (owner === "armenia") return 3;
   if (owner !== "persia") return -1;
-  if (lon >= 50.3 && lon <= 56.8 && lat >= 26.6 && lat <= 31.6) return 0;
-  if (lon < 50.3 && lat < 36.2) return 1;
-  if (lat >= 33 && lon < 56.8) return 2;
-  if (lon < 62) return 3;
-  return 4;
+  return provinceAt(lon, lat)[3];
 }
 // Owner of a map pixel once you have won `wins` battles.
 function campaignOwner(lon, lat, wins) {
@@ -1149,6 +1163,9 @@ function worldMapBase(wins) {
     if (o === "sea") { if (nb.some((n) => n !== "sea")) col = dark; else if ((x * 3 + y * 5) % 13 === 0) col = "#5d8fcc"; }
     else if (nb.some((n) => n === "sea")) col = dark;                                     // coastline
     else if (nb.some((n) => n !== o && n !== "sea") && (o === "persia" || o === "rome" || ((x + y) % 2 === 0))) col = INK;   // frontier
+    else if ((o === "persia" || o === "unclaimed") && x + 1 < w && y + 1 < h && (at(x + 1, y) === o || at(x, y + 1) === o)
+             && (provinceAt(lonAt(x), latAt(y)) !== provinceAt(lonAt(x + 1), latAt(y)) || provinceAt(lonAt(x), latAt(y)) !== provinceAt(lonAt(x), latAt(y + 1)))
+             && (x + y) % 2 === 0) col = o === "persia" ? "#6e4b9a" : "#8f8264";               // province outlines
     else if (o === "armenia" && (x + y) % 4 === 0) col = "#d9c08a";                       // buffer kingdom stripes
     else if ((o === "arabia" || o === "north" || o === "unclaimed") && (x * 7 + y * 11) % 17 === 0) col = dark;
     else {
@@ -1247,6 +1264,7 @@ class Battle {
     const T = this.terrain;
     if (T) {
       u.navT = (u.navT || 0) - this.dtNow;
+      if (u.bumped) { u.bumped = false; if (!u.nav || !u.nav.pts) u.navT = 0; }
       if (!u.nav || u.navT <= 0 || Math.hypot(u.nav.gx - gx, u.nav.gy - gy) > 40) {
         u.navT = 0.8 + Math.random() * 0.5;
         let pts = T.los(u.x, u.y, gx, gy) ? null : T.path(u.x, u.y, gx, gy);
@@ -1404,14 +1422,14 @@ class Battle {
         u.engaged = dist <= reach + (onRoute ? routeBuffer : u.range ? 20 : 60);
         if (!u.engaged) {
           let gx = g.x + u.form.dx, gy = g.y + u.form.dy;
-          u.squeeze = !!(this.terrain && this.terrain.blocked(gx, gy));
+          // squeeze through bridges and gates: follow the anchor when your spot is blocked or cut off from it
+          u.squeeze = !!(this.terrain && (this.terrain.blocked(gx, gy) || !this.terrain.los(g.x, g.y, gx, gy)));
           if (u.squeeze) { gx = g.x; gy = g.y; }   // squeeze through bridges and gates
           const sx = gx - u.x, sy = gy - u.y, sd = Math.hypot(sx, sy);
           if (sd > 2) {
             const step = Math.min(sd, u.speed * dt);
             const mx = this.steer(u, gx, gy, step);
             if (Math.abs(mx) > 3) u.facing = mx > 0 ? 1 : -1;
-            if (FX.move(u, step) && Math.random() < 0.4) this.burst(u.x, u.y, 2, ["#b8a77a", "#9c8a55"], 18, 6, 0.3);
           } else if (Math.abs(dx) > 4) u.facing = dx > 0 ? 1 : -1;
           continue;
         }
@@ -1423,14 +1441,12 @@ class Battle {
         const step = u.speed * dt;
         const mx = this.steer(u, wp.x, wp.y, step);
         if (Math.abs(mx) > 4) u.facing = mx > 0 ? 1 : -1;
-        if (FX.move(u, step) && Math.random() < 0.5) this.burst(u.x, u.y, 2, ["#b8a77a", "#9c8a55"], 18, 6, 0.3);
         continue;
       }
       if (Math.abs(dx) > 4) u.facing = dx > 0 ? 1 : -1;
       if (dist > reach) {
         const step = u.speed * dt;
         this.steer(u, tg.x, tg.y, step);
-        if (FX.move(u, step) && Math.random() < 0.5) this.burst(u.x, u.y, 2, ["#b8a77a", "#9c8a55"], 18, 6, 0.3);
       } else {
         u.cdLeft -= dt;
         if (u.cdLeft <= 0) {
@@ -1468,10 +1484,18 @@ class Battle {
     if (this.terrain) for (const u of live) {
       const T = this.terrain;
       if (!T.blocked(u.x, u.y)) continue;
+      u.bumped = true;                       // re-plan next frame instead of pushing into the obstacle
       if (!T.blocked(u.x, u.py)) u.y = u.py;
       else if (!T.blocked(u.px, u.y)) u.x = u.px;
       else { u.x = u.px; u.y = u.py; }
-      if (T.blocked(u.x, u.y)) { const p = T.nearestFree(u.x, u.y); u.x = p.x; u.y = p.y; }
+      if (T.blocked(u.x, u.y)) { const p = T.nearestFree(u.x, u.y, u.px, u.py); u.x = p.x; u.y = p.y; }
+    }
+    // Walking animation follows real movement, so a troop blocked by a wall stands still instead of hopping in place.
+    for (const u of live) {
+      if (!(u.want > 0)) continue;
+      const moved = Math.hypot(u.x - u.px, u.y - u.py);
+      if (moved > 0.05 && FX.move(u, moved) && Math.random() < 0.45) this.burst(u.x, u.y, 2, ["#b8a77a", "#9c8a55"], 18, 6, 0.3);
+      if (!this.terrain) u.want = 0;          // (with terrain, the unstick check below reads it first)
     }
     // Unstick: a troop that keeps trying to move but barely gets anywhere re-plans and sidesteps.
     if (this.terrain) for (const u of live) {
@@ -2019,42 +2043,62 @@ function drawCampaignMap() {
   const W = MAP_BOUNDS.w, H = MAP_BOUNDS.h, pos = (x, y) => `left:${(x / W) * 100}%;top:${(y / H) * 100}%`;
   const labels = () => {
     $("mapLabels").innerHTML = MAP_LABELS.filter((l) => l.text).map((l) => { const [x, y] = toMapPx(l.lon, l.lat); return `<span class="map-label ${l.cls}" style="${pos(x, y)};color:${l.color}">${l.text}</span>`; }).join("")
-      + `<span class="map-label big" style="${pos(target.cx, target.cy)};color:#efe0ff">${wins >= 3 ? "Sasanian Empire" : "Persia"}</span>`
+      + (wins >= 2 ? `<span class="map-label big" style="${pos(...toMapPx(55.6, 32.1))};color:#efe0ff">Sasanian Empire</span>`
+                   : `<span class="map-label big" style="${pos(target.cx, target.cy + 3)};color:#efe0ff">Persia</span>`)
       + C.stages.map((st, i) => {
         const [x, y] = toMapPx(st.lon, st.lat), state = i < run.stageIdx ? "won" : i === run.stageIdx ? "current" : "locked";
         return `<button class="map-flag ${state}" data-stage="${i}" style="${pos(x + st.flag[0], y + st.flag[1])}" aria-label="Battle of ${st.name}">${state === "won" ? "✓" : i + 1}</button>`;
       }).join("");
   };
-  // Center the scrollable map on the next battle (or your heartland once the campaign is won).
-  const focus = C.stages[Math.min(wins, C.stages.length - 1)], [fx] = toMapPx(focus.lon, focus.lat);
-  $("mapWrap").scrollLeft = (fx / W) * 480 - $("mapWrap").clientWidth / 2;
+  const scrollMapTo = (px) => { $("mapWrap").scrollLeft = (px / W) * 480 - $("mapWrap").clientWidth / 2; };
   labels();
-  cancelAnimationFrame(mapAnim);
-  if (from >= wins) { g.drawImage(target.canvas, 0, 0); overlay(); $("mapToast").hidden = true; return; }
-  // Your color floods out from the battle site into the newly won lands.
+  cancelAnimationFrame(mapAnim); clearTimeout(mapAnim); $("campaign").style.overflowY = "";
+  if (from >= wins) {
+    // Center the scrollable map on the next battle (or your heartland once the campaign is won).
+    const focus = C.stages[Math.min(wins, C.stages.length - 1)];
+    scrollMapTo(toMapPx(focus.lon, focus.lat)[0]);
+    g.drawImage(target.canvas, 0, 0); overlay(); $("mapToast").hidden = true; return;
+  }
+  // New lands: your color spreads outward from your existing border (and the battle site) as a
+  // clean wave, one ring of pixels at a time.
   $("mapToast").hidden = false;
   $("mapToast").textContent = `Your borders grow: ${CONQUESTS.slice(from + 1, wins + 1).join("; ")}.`;
-  const before = worldMapBase(from).canvas;
-  const a = before.getContext("2d").getImageData(0, 0, W, H), bData = target.canvas.getContext("2d").getImageData(0, 0, W, H);
-  const site = C.stages[wins - 1], [ox, oy] = toMapPx(site.lon, site.lat), diff = [];
-  for (let i = 0; i < W * H; i++) {
-    const k = i * 4;
-    if (a.data[k] !== bData.data[k] || a.data[k + 1] !== bData.data[k + 1] || a.data[k + 2] !== bData.data[k + 2]) {
-      diff.push([i, Math.hypot((i % W) - ox, Math.floor(i / W) - oy) + Math.random() * 6]);
-    }
+  const a = worldMapBase(from).canvas.getContext("2d").getImageData(0, 0, W, H), bData = target.canvas.getContext("2d").getImageData(0, 0, W, H);
+  const differs = (i) => a.data[i * 4] !== bData.data[i * 4] || a.data[i * 4 + 1] !== bData.data[i * 4 + 1] || a.data[i * 4 + 2] !== bData.data[i * 4 + 2];
+  const isOld = (i) => a.data[i * 4] === 0x8a && a.data[i * 4 + 1] === 0x63 && a.data[i * 4 + 2] === 0xb8;   // your color before
+  const level = new Int32Array(W * H).fill(-1), queue = [];
+  const nbrs = (i) => { const x = i % W, y = (i / W) | 0, out = []; if (x > 0) out.push(i - 1); if (x < W - 1) out.push(i + 1); if (y > 0) out.push(i - W); if (y < H - 1) out.push(i + W); return out; };
+  const site = C.stages[wins - 1], [sxp, syp] = toMapPx(site.lon, site.lat);
+  let gx = 0, gy = 0, gn = 0;
+  for (let i = 0; i < W * H; i++) if (differs(i)) {
+    gx += i % W; gy += (i / W) | 0; gn++;
+    if (nbrs(i).some(isOld) || Math.hypot((i % W) - sxp, ((i / W) | 0) - syp) < 2) { level[i] = 0; queue.push(i); }
   }
-  diff.sort((p, q) => p[1] - q[1]);
-  const frame = g.createImageData(W, H), t0 = performance.now(), dur = 1600;
+  const bfs = () => { for (let q = 0; q < queue.length; q++) for (const j of nbrs(queue[q])) if (level[j] < 0 && differs(j)) { level[j] = level[queue[q]] + 1; queue.push(j); } };
+  bfs();
+  for (;;) {   // pieces not touching your land (across the sea, say) start from their closest pixel
+    let best = -1, bd = Infinity;
+    for (let i = 0; i < W * H; i++) if (level[i] < 0 && differs(i)) { const d = Math.hypot((i % W) - target.cx, ((i / W) | 0) - target.cy); if (d < bd) { bd = d; best = i; } }
+    if (best < 0) break;
+    level[best] = 0; queue.length = 0; queue.push(best); bfs();
+  }
+  let maxLevel = 0; for (let i = 0; i < W * H; i++) maxLevel = Math.max(maxLevel, level[i]);
+  scrollMapTo(gn ? gx / gn : sxp);
+  // Hold the view on the map while it grows.
+  const screen = $("campaign"); screen.scrollTop = 0; screen.style.overflowY = "hidden";
+  const frame = g.createImageData(W, H), dur = 1800;
   frame.data.set(a.data);
-  let shown = 0;
+  g.putImageData(frame, 0, 0); overlay();
+  let t0 = 0;
   const step = (now) => {
-    const k = Math.min(1, (now - t0) / dur), upto = Math.floor(diff.length * k);
-    for (; shown < upto; shown++) { const i = diff[shown][0] * 4; for (let j = 0; j < 4; j++) frame.data[i + j] = bData.data[i + j]; }
+    if (!t0) t0 = now;
+    const k = Math.min(1, (now - t0) / dur), upto = Math.floor(maxLevel * k * k * (3 - 2 * k));
+    for (let i = 0; i < W * H; i++) if (level[i] >= 0 && level[i] <= upto) { level[i] = -2; for (let j = 0; j < 4; j++) frame.data[i * 4 + j] = bData.data[i * 4 + j]; }
     g.putImageData(frame, 0, 0); overlay();
     if (k < 1) mapAnim = requestAnimationFrame(step);
-    else { run.mapWins = wins; saveRun(); }
+    else { g.drawImage(target.canvas, 0, 0); overlay(); screen.style.overflowY = ""; run.mapWins = wins; saveRun(); }
   };
-  mapAnim = requestAnimationFrame(step);
+  mapAnim = setTimeout(() => { mapAnim = requestAnimationFrame(step); }, 400);
 }
 $("mapLabels").addEventListener("click", (e) => {
   const f = e.target.closest("[data-stage]"); if (!f) return;

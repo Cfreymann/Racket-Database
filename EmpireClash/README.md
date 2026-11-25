@@ -28,10 +28,17 @@ browser to play.
     buffer kingdom and the Arabian desert. It is drawn at 4 pixels per degree and scrolls sideways.
     Its seas, lakes, rivers (Euphrates, Tigris, Karun, Nile), mountains, forests, deserts, marshes and
     cities come from rough longitude/latitude outlines, rasterized to pixels.
-  * **Growing territory:** Persia starts as just Persis (Fars). Each victory annexes a region:
-    Mesopotamia, Khuzestan and Media; Atropatene, Rey and Hyrcania; Armenia, Kerman and Khorasan;
-    Sakastan, the Kushan lands and Oman; and finally Nisibis and Singara, ceded by Rome. Back on the
-    map, your color floods into the new lands from the battle site. See `conquestStage()`.
+  * **Growing territory:** Persia starts as just Persis (Fars). Its lands are split into provinces,
+    each grown from its historical capital (see `PROVINCES`). Each victory annexes the provinces next
+    to that battle, plus the next ring outward in the east:
+    1. Asorestan, Mesene, Khuzestan and Kerman
+    2. Adiabene, Media, Spahan and Sakastan
+    3. Armenia, Atropatene, Rey, Kushanshahr and Makran
+    4. Hyrcania, Parthia, Merv, Mazun and Hagar
+    5. Nisibis and Singara, ceded by Rome
+
+    Back on the map, the screen holds on the map while your color spreads out from your border in a
+    smooth wave.
 
 * **Endless:** the original mode, described below. It has its own save, separate from the campaign.
 
