@@ -1185,6 +1185,17 @@ const ROMAN_FRONTIER = [[47, 41.6], [44, 41.6], [41.6, 41.6], [40.2, 42.5], [38.
 const ARABIA_EDGE = [[34, 29.4], [38.5, 32.0], [41, 31.3], [44, 30.6], [46.5, 29.8], [48, 29.2], [50.3, 28.0]];
 const STEPPE_EDGE = [[52.5, 39.6], [54, 38.8], [57, 38.6], [60, 38.6], [63, 39.2], [66, 38.5]];
 const CAUCASUS_RIDGE = [[41.4, 42.4], [42.5, 42.85], [44, 42.7], [45.5, 42.3], [47.0, 41.7], [48.5, 41.3], [50, 41.0]];
+// The Sahara's northern edge follows the African coast a little inland; its corner by Egypt is rounded
+// off and its eastern edge leans toward the Nile further south.
+const SAHARA_EDGE = [[10, 31.7], [13, 31.3], [16, 30.3], [19.5, 29.3], [21, 30.2], [22.5, 30.9], [25, 30.0], [27.5, 29.6], [29.6, 29.5]];
+function inSahara(lon, lat) {
+  const east = 29.6 + Math.max(0, 28 - lat) * 0.12;
+  if (lon >= east) return false;
+  let edge = lerpTable(SAHARA_EDGE, lon);
+  const k = (lon - 27.2) / (east - 27.2);
+  if (k > 0) edge -= 2.4 * k * k;
+  return lat < edge;
+}
 const DANUBE = [[18.5, 45.2], [20, 44.9], [22, 44.6], [24, 43.75], [25.5, 43.65], [27, 44.1], [28, 44.5], [28.8, 45.25], [29.8, 45.2]];
 // Smooth, low-frequency wobble (in degrees) so land borders curve like real frontiers instead of
 // running in ruler-straight lines. Coasts and rivers are not warped.
@@ -1199,14 +1210,16 @@ function mapOwner(lon0, lat0) {
   if (LAKES.some(([x, y, rx, ry]) => ((lon0 - x) / rx) ** 2 + ((lat0 - y) / ry) ** 2 < 1)) return "sea";
   // Natural borders are not warped: the Danube, the Caucasus, the Black Sea steppe and the Red Sea.
   if (lon0 >= 18.5 && lon0 < 29.8 && lat0 > lerpTable(DANUBE, lon0)) return "north";               // Goths beyond the Danube
-  if (lon0 > 41.4 && lat0 > lerpTable(CAUCASUS_RIDGE, lon0)) return "north";                     // beyond the Caucasus ridge
+  if (lon0 > 39.5 && lat0 > lerpTable(CAUCASUS_RIDGE, lon0)) return "north";                     // beyond the Caucasus ridge
+  if (((lon0 - 41.6) / 1.45) ** 2 + ((lat0 - 42.25) / 0.95) ** 2 < 1) return "rome";              // Colchis (Lazica): under the ridge, rounded to the east
   if (lon0 >= 29.8 && lat0 > 44.4) return "north";                                                 // steppe north of the Black Sea
   if (lat0 < 29.6 && lon0 < 47 && lon0 > 32.6 + (29.9 - lat0) * 0.684) return "arabia";             // east of the Red Sea
   const [lon, lat] = borderWarp(lon0, lat0);
-  if (lon < 29.5 && lat < 29.8) return "arabia";                                                  // Sahara
+  if (lat > 41.6 && lon0 > 43.2) return "north";                                                  // Iberia and Albania
+  if (inSahara(lon, lat)) return "arabia";                                                         // Sahara
   if (lon < lerpTable(ROMAN_FRONTIER, lat)) return "rome";
   if (lon > 52.5 && lat > lerpTable(STEPPE_EDGE, lon)) return "north";
-  if (lat > 38.6 && lat <= 41.6 && lon < 47.6) return "armenia";
+  if (lat > 38.6 && (lat <= 41.6 || lon0 <= 43.2) && lon < 47.6) return "armenia";
   if (lon < 50.3 && lat < lerpTable(ARABIA_EDGE, lon)) return "arabia";
   if (lat < 23.4 && lon < 55) return "arabia";
   return "persia";
